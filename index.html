@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="如廁日誌">
+<meta name="theme-color" content="#F4EFE4">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<title>如廁日誌</title>
+<style>
+  :root{
+    --paper:#F4EFE4;
+    --card:#FCFAF4;
+    --ink:#2E2A23;
+    --ink-2:#7A7264;
+    --ink-3:#A79E8D;
+    --line:#E3DAC7;
+    --accent:#A3452B;
+    --accent-soft:rgba(163,69,43,.10);
+    --danger:#A6321F;
+    --good:#4E6B45;
+    --serif:Georgia,'Songti TC','PMingLiU',serif;
+    --sans:-apple-system,BlinkMacSystemFont,'PingFang TC','Noto Sans TC',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{height:100%}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100%;
+    overscroll-behavior-y:none;
+    touch-action:manipulation;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:480px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;position:relative}
+
+  /* ---------- header ---------- */
+  header{
+    padding:calc(env(safe-area-inset-top,0px) + 18px) 22px 6px;
+    display:flex;align-items:baseline;justify-content:space-between;
+  }
+  .brand{font-family:var(--serif);font-size:22px;letter-spacing:.06em}
+  .date-label{font-size:12.5px;color:var(--ink-2);letter-spacing:.05em}
+
+  /* ---------- today hero ---------- */
+  .hero{padding:14px 22px 4px;text-align:center}
+  .hero .cap{font-size:12px;letter-spacing:.28em;color:var(--ink-2)}
+  .hero .count{
+    font-family:var(--serif);
+    font-size:104px;line-height:1.02;
+    font-variant-numeric:lining-nums;
+    color:var(--ink);
+  }
+  .hero .count small{font-size:22px;font-family:var(--sans);color:var(--ink-2);letter-spacing:.1em;margin-left:4px}
+  .hero .lastline{font-size:13px;color:var(--ink-2);min-height:20px}
+  .hero .lastline b{color:var(--accent);font-weight:600}
+
+  /* ---------- week chart ---------- */
+  .week{
+    margin:16px 22px 0;padding:14px 16px 10px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+  }
+  .week .bars{display:flex;align-items:flex-end;gap:6px;height:52px}
+  .week .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .week .bar{
+    width:100%;max-width:30px;border-radius:5px 5px 2px 2px;
+    background:var(--ink-3);opacity:.45;
+    min-height:3px;
+    transition:height .3s ease;
+  }
+  .week .col.today .bar{background:var(--accent);opacity:1}
+  .week .n{font-size:10px;color:var(--ink-3);margin-bottom:4px;font-variant-numeric:tabular-nums}
+  .week .col.today .n{color:var(--accent);font-weight:700}
+  .week .d{font-size:10px;color:var(--ink-3);margin-top:6px;letter-spacing:.05em}
+  .week .foot{display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-2)}
+  .week .foot b{font-family:var(--serif);font-size:13px;color:var(--ink)}
+
+  /* ---------- history ---------- */
+  .hist{flex:1;padding:10px 22px 120px}
+  .day-head{
+    display:flex;align-items:baseline;gap:8px;
+    margin:22px 2px 8px;
+  }
+  .day-head .dh-t{font-family:var(--serif);font-size:15px}
+  .day-head .dh-n{font-size:11.5px;color:var(--ink-2)}
+  .day-head .dh-line{flex:1;height:1px;background:var(--line)}
+  .entry{
+    display:flex;align-items:center;gap:12px;
+    background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:12px 14px;margin-bottom:8px;
+    cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .entry:active{transform:scale(.985)}
+  .entry .time{font-family:var(--serif);font-size:16px;width:52px;font-variant-numeric:tabular-nums}
+  .entry .bt{
+    flex:none;width:41px;height:20px;border-radius:5px;
+    background-image:url('bristol.jpg');background-repeat:no-repeat;
+    background-size:258px 140px;background-color:#fff;
+    border:1px solid var(--line);
+  }
+  .entry .mid{flex:1;min-width:0}
+  .entry .t1{font-size:14.5px;font-weight:600}
+  .entry .t2{font-size:12px;color:var(--ink-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .entry .dot{width:9px;height:9px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.15)}
+  .entry.empty-hint{justify-content:center;color:var(--ink-3);font-size:13px;border-style:dashed;background:transparent}
+
+  .kind-pill{
+    flex:none;font-size:10px;letter-spacing:.12em;
+    padding:3px 7px;border-radius:99px;border:1px solid var(--line);color:var(--ink-2);
+  }
+  .kind-pill.big{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+
+  /* ---------- FAB ---------- */
+  .fab-wrap{
+    position:fixed;left:0;right:0;bottom:0;
+    display:flex;justify-content:center;
+    padding:12px 22px calc(env(safe-area-inset-bottom,0px) + 14px);
+    background:linear-gradient(to top,var(--paper) 55%,rgba(244,239,228,0));
+    pointer-events:none;
+  }
+  .fab{
+    pointer-events:auto;
+    width:100%;max-width:436px;
+    border:none;border-radius:18px;
+    background:var(--accent);color:#FBF6EE;
+    font-family:var(--sans);font-size:17px;font-weight:600;letter-spacing:.14em;
+    padding:17px;
+    box-shadow:0 6px 20px rgba(163,69,43,.32);
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .fab:active{transform:scale(.97);box-shadow:0 3px 10px rgba(163,69,43,.3)}
+
+  /* ---------- sheet ---------- */
+  .scrim{
+    position:fixed;inset:0;background:rgba(46,42,35,.38);
+    opacity:0;pointer-events:none;transition:opacity .25s ease;
+    z-index:20;
+  }
+  .scrim.open{opacity:1;pointer-events:auto}
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:21;
+    max-width:480px;margin:0 auto;
+    background:var(--paper);
+    border-radius:22px 22px 0 0;
+    box-shadow:0 -8px 40px rgba(46,42,35,.25);
+    transform:translateY(105%);
+    transition:transform .32s cubic-bezier(.32,.72,.28,1);
+    display:flex;flex-direction:column;
+    max-height:92vh;max-height:92dvh;
+  }
+  .sheet.open{transform:translateY(0)}
+  .grab{padding:10px 0 2px;display:flex;justify-content:center}
+  .grab i{width:38px;height:4.5px;border-radius:99px;background:var(--ink-3);opacity:.5}
+  .sheet-h{padding:6px 22px 4px;display:flex;align-items:baseline;justify-content:space-between}
+  .sheet-h .t{font-family:var(--serif);font-size:20px}
+  .sheet-h .cancel{font-size:13px;color:var(--ink-2);padding:8px 0;cursor:pointer}
+  .sheet-body{overflow-y:auto;padding:8px 22px 12px;flex:1;-webkit-overflow-scrolling:touch}
+
+  .seg{
+    display:flex;background:rgba(46,42,35,.07);border-radius:12px;padding:3px;margin:10px 0 16px;
+  }
+  .seg button{
+    flex:1;border:none;background:transparent;padding:9px;
+    font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink-2);
+    border-radius:9px;cursor:pointer;transition:all .18s ease;letter-spacing:.1em;
+  }
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(46,42,35,.14)}
+
+  .fld{margin-bottom:18px}
+  .fld .lb{font-size:11px;letter-spacing:.22em;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+  .fld .lb .hint{letter-spacing:.02em;text-transform:none;color:var(--ink-3)}
+
+  .dt-row{display:flex;gap:8px}
+  .dt-row input{
+    flex:1;min-width:0;
+    font-family:var(--serif);font-size:16px;color:var(--ink);
+    background:var(--card);border:1px solid var(--line);border-radius:11px;
+    padding:10px 12px;
+  }
+  .dt-row input[type="date"]{flex:1.5}
+
+  .bristol{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card)}
+  .br{
+    display:flex;align-items:center;gap:12px;
+    padding:10px 14px;cursor:pointer;
+    border-bottom:1px solid var(--line);
+    transition:background .15s ease;
+  }
+  .br:last-child{border-bottom:none}
+  .br.on{background:var(--accent-soft)}
+  .br .bt{
+    flex:none;width:70px;height:34px;border-radius:7px;
+    background-image:url('bristol.jpg');background-repeat:no-repeat;
+    background-size:439px 238px;background-color:#fff;
+    border:1px solid var(--line);
+  }
+  .br.on .bt{border-color:var(--accent)}
+  .br .num{font-family:var(--serif);font-size:17px;width:16px;text-align:center;color:var(--ink-2)}
+  .br.on .num{color:var(--accent)}
+  .br .txt{flex:1;min-width:0}
+  .br .txt .n1{font-size:14px;font-weight:600}
+  .br .txt .n2{font-size:11.5px;color:var(--ink-2);margin-top:1px}
+  .br .check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);flex:none;position:relative}
+  .br.on .check{border-color:var(--accent);background:var(--accent)}
+  .br.on .check::after{
+    content:'';position:absolute;left:6px;top:2.5px;
+    width:4px;height:8px;border:solid #FBF6EE;border-width:0 2px 2px 0;transform:rotate(42deg);
+  }
+  .sv{font-style:normal;font-weight:600}
+  .sv-bad{color:#A6321F}
+  .sv-mid{color:#8A6A1F}
+  .sv-ok{color:#4E6B45}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{
+    display:flex;align-items:center;gap:7px;
+    font-size:13.5px;color:var(--ink);
+    background:var(--card);border:1px solid var(--line);
+    border-radius:99px;padding:8px 13px;cursor:pointer;
+    transition:all .15s ease;
+  }
+  .chip .sw{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.15)}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .chip.on .sw{border-color:rgba(255,255,255,.35)}
+
+  textarea.note{
+    width:100%;resize:none;
+    font-family:var(--sans);font-size:14px;color:var(--ink);
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:11px 13px;line-height:1.5;
+  }
+  textarea.note:focus{outline:1.5px solid var(--accent);outline-offset:-1px}
+
+  .sheet-foot{
+    padding:10px 22px calc(env(safe-area-inset-bottom,0px) + 16px);
+    display:flex;gap:10px;align-items:center;
+    border-top:1px solid var(--line);
+  }
+  .save-btn{
+    flex:1;border:none;border-radius:14px;
+    background:var(--accent);color:#FBF6EE;
+    font-family:var(--sans);font-size:16px;font-weight:600;letter-spacing:.16em;
+    padding:15px;cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .save-btn:active{transform:scale(.97)}
+  .save-btn:disabled{opacity:.4}
+  .del-btn{
+    border:none;background:transparent;color:var(--danger);
+    font-size:13px;padding:12px 6px;cursor:pointer;letter-spacing:.08em;
+  }
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);
+    transform:translateX(-50%) translateY(16px);
+    background:var(--ink);color:var(--paper);
+    font-size:13.5px;letter-spacing:.1em;
+    padding:10px 20px;border-radius:99px;
+    opacity:0;pointer-events:none;
+    transition:all .3s cubic-bezier(.32,.72,.28,1);
+    z-index:40;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .export-line{
+    text-align:center;padding:0 0 12px;
+    font-size:11px;color:var(--ink-3);letter-spacing:.08em;
+  }
+  .export-line a{color:var(--ink-3);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+  input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">如廁日誌</div>
+    <div class="date-label" id="todayLabel"></div>
+  </header>
+
+  <section class="hero">
+    <div class="cap">今 日 次 數</div>
+    <div class="count"><span id="todayCount">0</span><small>次</small></div>
+    <div class="lastline" id="lastLine"></div>
+  </section>
+
+  <section class="week" id="weekCard">
+    <div class="bars" id="weekBars"></div>
+    <div class="foot">
+      <span>近 7 日</span>
+      <span><b id="weekTotal">0</b> 次 · 日均 <b id="weekAvg">0</b> 次</span>
+    </div>
+  </section>
+
+  <main class="hist" id="hist"></main>
+
+  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a></div>
+
+  <div class="fab-wrap">
+    <button class="fab" id="addBtn">＋ 記一次</button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="grab"><i></i></div>
+  <div class="sheet-h">
+    <div class="t" id="sheetTitle">記一次</div>
+    <div class="cancel" id="cancelBtn">取消</div>
+  </div>
+  <div class="sheet-body">
+    <div class="seg" id="kindSeg">
+      <button data-k="big" class="on">大 便</button>
+      <button data-k="small">小 便</button>
+    </div>
+
+    <div class="fld">
+      <div class="lb">時 間</div>
+      <div class="dt-row">
+        <input type="date" id="inDate">
+        <input type="time" id="inTime">
+      </div>
+    </div>
+
+    <div class="fld" id="bristolFld">
+      <div class="lb">型 態<span class="hint">布里斯托分類</span></div>
+      <div class="bristol" id="bristolList"></div>
+    </div>
+
+    <div class="fld">
+      <div class="lb">顏 色</div>
+      <div class="chips" id="colorChips"></div>
+    </div>
+
+    <div class="fld">
+      <div class="lb" id="feelLb">感 受</div>
+      <div class="chips" id="feelChips"></div>
+    </div>
+
+    <div class="fld">
+      <div class="lb">備 註</div>
+      <textarea class="note" id="inNote" rows="2" placeholder="吃了什麼、哪裡不舒服…"></textarea>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="del-btn" id="delBtn" style="display:none">刪除此筆</button>
+    <button class="save-btn" id="saveBtn">儲 存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var LS_KEY = 'gutlog.entries.v1';
+
+  /* ---------- Bristol scale：原圖照片縮圖（bristol.jpg 七列 sprite） ---------- */
+  var BRISTOL = [
+    {n:1, name:'分離硬塊', sub:'一顆顆分開的硬塊', sev:'嚴重便秘', cls:'bad'},
+    {n:2, name:'結塊香腸', sub:'香腸狀但結成一塊塊', sev:'輕微便秘', cls:'mid'},
+    {n:3, name:'裂痕香腸', sub:'香腸狀、表面有裂痕', sev:'正常', cls:'ok'},
+    {n:4, name:'光滑柔軟', sub:'柔軟光滑的長條狀', sev:'正常・理想', cls:'ok'},
+    {n:5, name:'軟塊分明', sub:'邊緣清楚的柔軟小塊', sev:'缺乏纖維', cls:'mid'},
+    {n:6, name:'鬆散糊狀', sub:'蓬鬆糊狀、邊緣鬆散', sev:'輕微腹瀉', cls:'mid'},
+    {n:7, name:'完全液狀', sub:'全液體、無固體塊', sev:'嚴重腹瀉', cls:'bad'}
+  ];
+  /* sprite 換算：原圖 662×359，七列各高 51.286px。
+     選單縮圖 34px 高 → scale .663 → bg-size 439×238，pos-y=-34*(n-1)
+     列表縮圖 20px 高 → scale .390 → bg-size 258×140，pos-y=-20*(n-1) */
+  function btPos(n,h){ return '0 -'+(h*(n-1))+'px'; }
+
+  var COLORS = {
+    big:   [['黃褐','#B08A4F'],['深褐','#6B4A2E'],['偏黑','#3A3129'],['偏綠','#5E6B3C'],['灰白','#C9C4B4'],['帶血絲','#A6321F']],
+    small: [['淡黃','#E7D78F'],['黃','#DBB94E'],['深黃','#C08F2E'],['琥珀','#9C5F1E'],['混濁','#B8AD90'],['偏紅','#A6321F']]
+  };
+  var FEELS = {
+    big:   ['順暢','普通','費力','排不淨','腹痛','急迫'],
+    small: ['順暢','普通','灼熱','刺痛','尿急','頻尿感']
+  };
+  var KIND_NAME = {big:'大便', small:'小便'};
+
+  /* ---------- state ---------- */
+  var entries = load();
+  var draft = null;          // {id?, ts, kind, bristol, color, feel, note}
+  var editingId = null;
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(LS_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    }catch(e){ return []; }
+  }
+  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
+  function pad(n){ return (n<10?'0':'')+n; }
+  function dkey(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function dayOf(ts){ var d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+  function fmtTime(ts){ var d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+  var WD = ['日','一','二','三','四','五','六'];
+
+  /* ---------- render ---------- */
+  function render(){
+    var now = new Date();
+    $('todayLabel').textContent = (now.getMonth()+1)+'月'+now.getDate()+'日 · 週'+WD[now.getDay()];
+
+    var todayK = dayOf(now.getTime());
+    var sorted = entries.slice().sort(function(a,b){return b.ts-a.ts});
+    var todayEntries = sorted.filter(function(e){return dayOf(e.ts)===todayK});
+    $('todayCount').textContent = todayEntries.length;
+
+    if(todayEntries.length){
+      var le = todayEntries[0];
+      $('lastLine').innerHTML = '上次 '+fmtTime(le.ts)+' · <b>'+esc(describe(le))+'</b>';
+    }else{
+      $('lastLine').textContent = sorted.length ? '今天還沒有紀錄' : '從第一筆開始';
+    }
+
+    /* week bars: last 7 calendar days */
+    var bars='', total=0, counts={};
+    entries.forEach(function(e){ var k=dayOf(e.ts); counts[k]=(counts[k]||0)+1; });
+    var cols=[];
+    for(var i=6;i>=0;i--){
+      var t=todayK - i*86400000;
+      cols.push({t:t,c:counts[t]||0});
+      total+=counts[t]||0;
+    }
+    var max=Math.max.apply(null,cols.map(function(c){return c.c}).concat([1]));
+    cols.forEach(function(c){
+      var d=new Date(c.t);
+      var h=Math.round(c.c/max*38)+3;
+      bars+='<div class="col'+(c.t===todayK?' today':'')+'">'
+          +'<div class="n">'+(c.c||'')+'</div>'
+          +'<div class="bar" style="height:'+h+'px"></div>'
+          +'<div class="d">'+(d.getMonth()+1)+'/'+d.getDate()+'</div>'
+          +'</div>';
+    });
+    $('weekBars').innerHTML=bars;
+    $('weekTotal').textContent=total;
+    $('weekAvg').textContent=(total/7).toFixed(1);
+
+    /* history grouped by day, newest first */
+    var html='', lastK=null;
+    if(!sorted.length){
+      html='<div class="day-head"><div class="dh-t">紀 錄</div><div class="dh-line"></div></div>'
+         +'<div class="entry empty-hint">上完廁所，按下面「＋記一次」</div>';
+    }
+    sorted.forEach(function(e){
+      var k=dayOf(e.ts);
+      if(k!==lastK){
+        lastK=k;
+        var d=new Date(k);
+        var label = k===todayK ? '今天' : (k===todayK-86400000 ? '昨天' : (d.getMonth()+1)+'月'+d.getDate()+'日 週'+WD[d.getDay()]);
+        var n=counts[k]||0;
+        html+='<div class="day-head"><div class="dh-t">'+label+'</div><div class="dh-n">'+n+' 次</div><div class="dh-line"></div></div>';
+      }
+      var b=BRISTOL[e.bristol-1];
+      html+='<div class="entry" data-id="'+e.id+'">'
+        +'<div class="time">'+fmtTime(e.ts)+'</div>'
+        +(e.kind==='big'&&b?'<div class="bt" style="background-position:'+btPos(b.n,20)+'"></div>':'')
+        +'<div class="mid"><div class="t1">'+esc(headline(e))+'</div><div class="t2">'+esc(subline(e))+'</div></div>'
+        +(e.color?'<div class="dot" style="background:'+esc(e.colorHex||'#999')+'"></div>':'')
+        +'<div class="kind-pill'+(e.kind==='big'?' big':'')+'">'+KIND_NAME[e.kind]+'</div>'
+        +'</div>';
+    });
+    $('hist').innerHTML=html;
+
+    Array.prototype.forEach.call(document.querySelectorAll('.entry[data-id]'),function(el){
+      el.addEventListener('click',function(){ openSheet(el.getAttribute('data-id')); });
+    });
+  }
+
+  function describe(e){
+    if(e.kind==='big'&&e.bristol){ return '第'+e.bristol+'型 '+BRISTOL[e.bristol-1].name; }
+    return e.color||KIND_NAME[e.kind];
+  }
+  function headline(e){
+    if(e.kind==='big'&&e.bristol){ var b=BRISTOL[e.bristol-1]; return '第'+e.bristol+'型 · '+b.name; }
+    return KIND_NAME[e.kind]+(e.color?' · '+e.color:'');
+  }
+  function subline(e){
+    var parts=[];
+    if(e.feel)parts.push(e.feel);
+    if(e.color&&e.kind==='big')parts.push(e.color);
+    if(e.note)parts.push(e.note);
+    return parts.join(' · ')||'—';
+  }
+
+  /* ---------- sheet ---------- */
+  var sheet=$('sheet'), scrim=$('scrim');
+
+  function openSheet(id){
+    editingId = id||null;
+    var e = id ? entries.filter(function(x){return String(x.id)===String(id)})[0] : null;
+    var now = new Date();
+    var src = e || {ts:now.getTime(), kind:'big', bristol:lastBristol(), color:null, feel:null, note:''};
+    draft = {id:src.id, ts:src.ts, kind:src.kind||'big', bristol:src.bristol||null,
+             color:src.color||null, feel:src.feel||null, note:src.note||''};
+    $('sheetTitle').textContent = e?'編輯紀錄':'記一次';
+    $('delBtn').style.display = e?'':'none';
+    syncInputs(); renderSheet();
+    scrim.classList.add('open'); sheet.classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+  function closeSheet(){
+    scrim.classList.remove('open'); sheet.classList.remove('open');
+    document.body.style.overflow='';
+    editingId=null; draft=null;
+  }
+  function lastBristol(){
+    for(var i=0;i<entries.length;i++){
+      var b=entries.slice().sort(function(a,b2){return b2.ts-a.ts})[i];
+      if(b.kind==='big'&&b.bristol)return b.bristol;
+    }
+    return 4;
+  }
+
+  function syncInputs(){
+    var d=new Date(draft.ts);
+    $('inDate').value = dkey(d);
+    $('inTime').value = fmtTime(draft.ts);
+    $('inNote').value = draft.note||'';
+  }
+
+  function renderSheet(){
+    /* kind segmented */
+    Array.prototype.forEach.call($('kindSeg').children,function(btn){
+      btn.classList.toggle('on', btn.getAttribute('data-k')===draft.kind);
+    });
+    /* bristol visibility */
+    $('bristolFld').style.display = draft.kind==='big' ? '' : 'none';
+    /* bristol rows */
+    var bl='';
+    BRISTOL.forEach(function(b){
+      bl+='<div class="br'+(draft.bristol===b.n?' on':'')+'" data-n="'+b.n+'">'
+        +'<div class="bt" style="background-position:'+btPos(b.n,34)+'"></div>'
+        +'<div class="num">'+b.n+'</div>'
+        +'<div class="txt"><div class="n1">'+b.name+'</div>'
+        +'<div class="n2">'+b.sub+' · <em class="sv sv-'+b.cls+'">'+b.sev+'</em></div></div>'
+        +'<div class="check"></div></div>';
+    });
+    $('bristolList').innerHTML=bl;
+    Array.prototype.forEach.call($('bristolList').children,function(row){
+      row.addEventListener('click',function(){
+        draft.bristol=+row.getAttribute('data-n'); renderSheet();
+      });
+    });
+    /* chips */
+    renderChips('colorChips', COLORS[draft.kind], draft.color, function(v,hex){
+      draft.color = draft.color===v?null:v; draft.colorHex=hex; renderSheet();
+    }, true);
+    renderChips('feelChips', FEELS[draft.kind], draft.feel, function(v){
+      draft.feel = draft.feel===v?null:v; renderSheet();
+    }, false);
+  }
+
+  function renderChips(elId, items, current, onPick, hasSwatch){
+    var el=$(elId), html='';
+    items.forEach(function(it){
+      var name = hasSwatch?it[0]:it, hex = hasSwatch?it[1]:null;
+      html+='<div class="chip'+(current===name?' on':'')+'" data-v="'+esc(name)+'" data-h="'+esc(hex||'')+'">'
+        +(hasSwatch?'<span class="sw" style="background:'+esc(hex)+'"></span>':'')
+        +esc(name)+'</div>';
+    });
+    el.innerHTML=html;
+    Array.prototype.forEach.call(el.children,function(c){
+      c.addEventListener('click',function(){ onPick(c.getAttribute('data-v'), c.getAttribute('data-h')); });
+    });
+  }
+
+  /* ---------- events ---------- */
+  $('addBtn').addEventListener('click',function(){ openSheet(null); });
+  $('cancelBtn').addEventListener('click',closeSheet);
+  scrim.addEventListener('click',closeSheet);
+
+  Array.prototype.forEach.call($('kindSeg').children,function(btn){
+    btn.addEventListener('click',function(){
+      draft.kind=btn.getAttribute('data-k');
+      draft.color=null; draft.feel=null;
+      if(draft.kind!=='big')draft.bristol=null; else draft.bristol=draft.bristol||lastBristol();
+      renderSheet();
+    });
+  });
+
+  $('saveBtn').addEventListener('click',function(){
+    var dv=$('inDate').value, tv=$('inTime').value;
+    if(dv&&tv){
+      var t=new Date(dv+'T'+tv+':00').getTime();
+      if(!isNaN(t)) draft.ts=t;
+    }
+    draft.note=$('inNote').value.trim();
+    var msg;
+    if(editingId!=null){
+      var i=entries.findIndex(function(x){return String(x.id)===String(editingId)});
+      if(i>-1){ draft.id=entries[i].id; entries[i]=draft; }
+      msg='已更新';
+    }else{
+      draft.id=Date.now()+''+Math.floor(Math.random()*1000);
+      entries.push(draft);
+      msg='已記下 '+fmtTime(draft.ts);
+    }
+    save(); closeSheet(); render(); toast(msg);
+  });
+
+  $('delBtn').addEventListener('click',function(){
+    if(editingId==null)return;
+    if(!confirm('確定刪除這筆紀錄？'))return;
+    entries=entries.filter(function(x){return String(x.id)!==String(editingId)});
+    save(); closeSheet(); render(); toast('已刪除');
+  });
+
+  var toastTimer=null;
+  function toast(msg){
+    var t=$('toast'); t.textContent=msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){t.classList.remove('show')},1800);
+  }
+
+  $('exportLink').addEventListener('click',function(){
+    var blob=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='gutlog-'+dkey(new Date())+'.json';
+    a.click();
+  });
+
+  /* swipe-down to close sheet (simple) */
+  var touchY=null;
+  sheet.addEventListener('touchstart',function(e){ touchY=e.touches[0].clientY; },{passive:true});
+  sheet.addEventListener('touchmove',function(e){
+    if(touchY===null)return;
+    var dy=e.touches[0].clientY-touchY;
+    if(dy>0 && sheet.querySelector('.sheet-body').scrollTop<=0){
+      sheet.style.transform='translateY('+dy+'px)';
+    }
+  },{passive:true});
+  sheet.addEventListener('touchend',function(e){
+    if(touchY===null)return;
+    var dy=e.changedTouches[0].clientY-touchY;
+    sheet.style.transform='';
+    if(dy>90)closeSheet();
+    touchY=null;
+  });
+
+  render();
+
+  /* ---------- PWA：HTTPS 環境下註冊 Service Worker，快取整支 App 到手機 ---------- */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
