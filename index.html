@@ -294,6 +294,13 @@
   }
   .ib .ib-x{flex:none;color:var(--ink-3);font-size:14px;padding:4px 6px;cursor:pointer}
 
+  /* ---------- demo banner ---------- */
+  .demo{display:none;margin:10px 22px 0;padding:11px 14px;background:var(--ink);color:var(--paper);border-radius:14px;align-items:center;gap:10px;font-size:13px;line-height:1.55}
+  .demo.show{display:flex}
+  .demo .d-t{flex:1}
+  .demo .d-t b{color:#E8B54A}
+  .demo a{flex:none;color:#E8B54A;font-weight:600;text-decoration:none;white-space:nowrap}
+
   input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none}
 </style>
 </head>
@@ -303,6 +310,11 @@
     <div class="brand">如廁日誌</div>
     <div class="date-label" id="todayLabel"></div>
   </header>
+
+  <div class="demo" id="demoBar">
+    <div class="d-t"><b>示範模式</b>：以下為 7 天假資料，不會動到你的真實紀錄</div>
+    <a href="./">回到我的紀錄</a>
+  </div>
 
   <section class="hero">
     <div class="cap">今 日 大 便</div>
@@ -388,7 +400,8 @@
 <script>
 (function(){
   'use strict';
-  var LS_KEY = 'gutlog.entries.v1';
+  var DEMO = /[?&]demo=1/.test(location.search);
+  var LS_KEY = DEMO ? 'gutlog.demo.v1' : 'gutlog.entries.v1';
 
   /* ---------- Bristol scale：原圖照片縮圖（bristol.jpg 七列 sprite） ---------- */
   var BRISTOL = [
@@ -410,7 +423,8 @@
 
   /* ---------- state ---------- */
   var entries = load();
-  var draft = null;          // {id?, ts, kind, bristol, color, feel, note}
+  if(DEMO && !entries.length){ entries = seedDemo(); save(); }
+  var draft = null;          // {id?, ts, bristol, color, feel, note}
   var editingId = null;
 
   function load(){
@@ -421,6 +435,25 @@
     }catch(e){ return []; }
   }
   function save(){ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
+
+  /* ---------- 示範模式：7 天假資料，寫進獨立儲存區，不碰真實紀錄 ---------- */
+  function seedDemo(){
+    function mk(off,h,m,br,col,feel,note){
+      var d=new Date(); d.setDate(d.getDate()-off); d.setHours(h,m,0,0);
+      return {id:'demo-'+off+'-'+h+'-'+m, ts:d.getTime(), bristol:br,
+        color:col, colorHex:col==='深褐'?'#6B4A2E':'#B08A4F', feel:feel, note:note||''};
+    }
+    return [
+      mk(6, 8,12,4,'黃褐','順暢'),
+      mk(5, 7,45,4,'深褐','順暢'),
+      mk(5,21,30,6,'黃褐','腹痛','中午的便當好像不太新鮮'),
+      mk(3, 9, 5,2,'深褐','費力','這兩天水喝太少'),
+      mk(2, 8,20,3,'黃褐','普通'),
+      mk(2,20,15,4,'黃褐','順暢'),
+      mk(1, 7,58,4,'深褐','順暢'),
+      mk(0, 8,35,4,'黃褐','順暢','早餐後很順')
+    ];
+  }
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
@@ -555,8 +588,8 @@
     editingId = id||null;
     var e = id ? entries.filter(function(x){return String(x.id)===String(id)})[0] : null;
     var now = new Date();
-    var src = e || {ts:now.getTime(), kind:'big', bristol:lastBristol(), color:null, feel:null, note:''};
-    draft = {id:src.id, ts:src.ts, kind:src.kind||'big', bristol:src.bristol||null,
+    var src = e || {ts:now.getTime(), bristol:lastBristol(), color:null, feel:null, note:''};
+    draft = {id:src.id, ts:src.ts, bristol:src.bristol||null,
              color:src.color||null, feel:src.feel||null, note:src.note||''};
     $('sheetTitle').textContent = e?'編輯紀錄':'記一次';
     $('delBtn').style.display = e?'':'none';
@@ -697,7 +730,7 @@
     e.preventDefault();deferredPrompt=e;
     showIB('把這個 App <b>一鍵安裝</b>到手機桌面，之後沒網路也能記',true);
   });
-  if(iOSSafari){
+  if(iOSSafari && !DEMO){
     showIB('點 Safari 底部「分享」→「<b>加入主畫面</b>」，這個就變成桌面 App，離線也能記',false);
   }
   $('ibBtn').addEventListener('click',function(){
@@ -725,6 +758,7 @@
     touchY=null;
   });
 
+  if(DEMO)$('demoBar').classList.add('show');
   render();
 
   /* ---------- PWA：HTTPS 環境下註冊 Service Worker，快取整支 App 到手機 ---------- */
