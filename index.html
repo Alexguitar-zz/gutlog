@@ -128,12 +128,6 @@
   .entry .dot{width:9px;height:9px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.15)}
   .entry.empty-hint{justify-content:center;color:var(--ink-3);font-size:13px;border-style:dashed;background:transparent}
 
-  .kind-pill{
-    flex:none;font-size:10px;letter-spacing:.12em;
-    padding:3px 7px;border-radius:99px;border:1px solid var(--line);color:var(--ink-2);
-  }
-  .kind-pill.big{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
-
   /* ---------- FAB ---------- */
   .fab-wrap{
     position:fixed;left:0;right:0;bottom:0;
@@ -180,16 +174,6 @@
   .sheet-h .t{font-family:var(--serif);font-size:20px}
   .sheet-h .cancel{font-size:13px;color:var(--ink-2);padding:8px 0;cursor:pointer}
   .sheet-body{overflow-y:auto;padding:8px 22px 12px;flex:1;-webkit-overflow-scrolling:touch}
-
-  .seg{
-    display:flex;background:rgba(46,42,35,.07);border-radius:12px;padding:3px;margin:10px 0 16px;
-  }
-  .seg button{
-    flex:1;border:none;background:transparent;padding:9px;
-    font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink-2);
-    border-radius:9px;cursor:pointer;transition:all .18s ease;letter-spacing:.1em;
-  }
-  .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(46,42,35,.14)}
 
   .fld{margin-bottom:18px}
   .fld .lb{font-size:11px;letter-spacing:.22em;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
@@ -330,12 +314,12 @@
     <div class="bars" id="weekBars"></div>
     <div class="foot">
       <span>近 7 日 · 大便</span>
-      <span><b id="weekTotal">0</b> 次 · 小便 <b id="weekSmall">0</b> · 日均 <b id="weekAvg">0</b></span>
+      <span><b id="weekTotal">0</b> 次 · 日均 <b id="weekAvg">0</b></span>
     </div>
   </section>
 
   <section class="stats" id="statsCard" style="display:none">
-    <div class="st-l1"><span id="stBig"></span><span id="stSmall"></span></div>
+    <div class="st-l1"><span id="stBig"></span></div>
     <div class="segbar" id="segBar"></div>
     <div class="legend" id="segLegend"></div>
     <div class="st-l2" id="stLast"></div>
@@ -365,12 +349,7 @@
     <div class="cancel" id="cancelBtn">取消</div>
   </div>
   <div class="sheet-body">
-    <div class="seg" id="kindSeg">
-      <button data-k="big" class="on">大 便</button>
-      <button data-k="small">小 便</button>
-    </div>
-
-    <div class="fld">
+    <div class="fld" style="margin-top:10px">
       <div class="lb">時 間</div>
       <div class="dt-row">
         <input type="date" id="inDate">
@@ -426,15 +405,8 @@
      列表縮圖 20px 高 → scale .390 → bg-size 258×140，pos-y=-20*(n-1) */
   function btPos(n,h){ return '0 -'+(h*(n-1))+'px'; }
 
-  var COLORS = {
-    big:   [['黃褐','#B08A4F'],['深褐','#6B4A2E'],['偏黑','#3A3129'],['偏綠','#5E6B3C'],['灰白','#C9C4B4'],['帶血絲','#A6321F']],
-    small: [['淡黃','#E7D78F'],['黃','#DBB94E'],['深黃','#C08F2E'],['琥珀','#9C5F1E'],['混濁','#B8AD90'],['偏紅','#A6321F']]
-  };
-  var FEELS = {
-    big:   ['順暢','普通','費力','排不淨','腹痛','急迫'],
-    small: ['順暢','普通','灼熱','刺痛','尿急','頻尿感']
-  };
-  var KIND_NAME = {big:'大便', small:'小便'};
+  var COLORS = [['黃褐','#B08A4F'],['深褐','#6B4A2E'],['偏黑','#3A3129'],['偏綠','#5E6B3C'],['灰白','#C9C4B4'],['帶血絲','#A6321F']];
+  var FEELS = ['順暢','普通','費力','排不淨','腹痛','急迫'];
 
   /* ---------- state ---------- */
   var entries = load();
@@ -466,30 +438,27 @@
     var todayK = dayOf(now.getTime());
     var sorted = entries.slice().sort(function(a,b){return b.ts-a.ts});
     var todayEntries = sorted.filter(function(e){return dayOf(e.ts)===todayK});
-    var todayBig = todayEntries.filter(function(e){return e.kind==='big'});
-    var todaySmall = todayEntries.filter(function(e){return e.kind==='small'});
-    $('todayCount').textContent = todayBig.length;
+    $('todayCount').textContent = todayEntries.length;
 
     var ll='';
-    if(todayBig.length){
-      var le=todayBig[0];
+    if(todayEntries.length){
+      var le=todayEntries[0];
       ll='上次大便 '+fmtTime(le.ts)+' · <b>'+esc(describe(le))+'</b>';
+    }else{
+      ll = sorted.length ? '今天還沒有大便' : '從第一筆開始';
     }
-    if(todaySmall.length){ ll=(ll?ll+'<br>':'')+'小便 '+todaySmall.length+' 次'; }
-    if(!ll){ ll = sorted.length ? '今天還沒有大便' : '從第一筆開始'; }
     $('lastLine').innerHTML = ll;
 
-    /* week bars: last 7 calendar days — 大便次數 */
-    var bars='', total=0, totalS=0, counts={}, countsS={};
+    /* week bars: last 7 calendar days */
+    var bars='', total=0, counts={};
     entries.forEach(function(e){
-      var k=dayOf(e.ts);
-      if(e.kind==='big'){counts[k]=(counts[k]||0)+1}else{countsS[k]=(countsS[k]||0)+1}
+      var k=dayOf(e.ts); counts[k]=(counts[k]||0)+1;
     });
     var cols=[];
     for(var i=6;i>=0;i--){
       var t=todayK - i*86400000;
       cols.push({t:t,c:counts[t]||0});
-      total+=counts[t]||0; totalS+=countsS[t]||0;
+      total+=counts[t]||0;
     }
     var max=Math.max.apply(null,cols.map(function(c){return c.c}).concat([1]));
     cols.forEach(function(c){
@@ -503,25 +472,21 @@
     });
     $('weekBars').innerHTML=bars;
     $('weekTotal').textContent=total;
-    $('weekSmall').textContent=totalS;
     $('weekAvg').textContent=(total/7).toFixed(1);
 
     /* stats card: 近 30 日 */
     var cut=todayK-29*86400000;
-    var b30=0,s30=0,clsC=0,clsN=0,clsD=0,lastBigTs=0;
+    var b30=0,clsC=0,clsN=0,clsD=0,lastBigTs=0;
     entries.forEach(function(e){
-      if(e.kind==='big'&&e.ts>lastBigTs)lastBigTs=e.ts;
+      if(e.ts>lastBigTs)lastBigTs=e.ts;
       if(e.ts<cut)return;
-      if(e.kind==='big'){
-        b30++;
-        if(e.bristol){ if(e.bristol<=2)clsC++; else if(e.bristol<=5)clsN++; else clsD++; }
-      }else s30++;
+      b30++;
+      if(e.bristol){ if(e.bristol<=2)clsC++; else if(e.bristol<=5)clsN++; else clsD++; }
     });
-    if(b30+s30===0){ $('statsCard').style.display='none'; }
+    if(b30===0){ $('statsCard').style.display='none'; }
     else{
       $('statsCard').style.display='';
       $('stBig').innerHTML='近 30 日 · 大便 <b>'+b30+'</b> 次（日均 '+(b30/30).toFixed(1)+'）';
-      $('stSmall').innerHTML='小便 <b>'+s30+'</b> 次';
       var tb=clsC+clsN+clsD;
       if(tb){
         var pc=function(x){return Math.round(x/tb*100)};
@@ -549,17 +514,15 @@
         lastK=k;
         var d=new Date(k);
         var label = k===todayK ? '今天' : (k===todayK-86400000 ? '昨天' : (d.getMonth()+1)+'月'+d.getDate()+'日 週'+WD[d.getDay()]);
-        var nb=counts[k]||0, ns=countsS[k]||0;
-        var dn = nb+' 大'+(ns?' · '+ns+' 小':'');
-        html+='<div class="day-head"><div class="dh-t">'+label+'</div><div class="dh-n">'+dn+'</div><div class="dh-line"></div></div>';
+        var n=counts[k]||0;
+        html+='<div class="day-head"><div class="dh-t">'+label+'</div><div class="dh-n">'+n+' 次</div><div class="dh-line"></div></div>';
       }
       var b=BRISTOL[e.bristol-1];
       html+='<div class="entry" data-id="'+e.id+'">'
         +'<div class="time">'+fmtTime(e.ts)+'</div>'
-        +(e.kind==='big'&&b?'<div class="bt" style="background-position:'+btPos(b.n,20)+'"></div>':'')
+        +(b?'<div class="bt" style="background-position:'+btPos(b.n,20)+'"></div>':'')
         +'<div class="mid"><div class="t1">'+esc(headline(e))+'</div><div class="t2">'+esc(subline(e))+'</div></div>'
         +(e.color?'<div class="dot" style="background:'+esc(e.colorHex||'#999')+'"></div>':'')
-        +'<div class="kind-pill'+(e.kind==='big'?' big':'')+'">'+KIND_NAME[e.kind]+'</div>'
         +'</div>';
     });
     $('hist').innerHTML=html;
@@ -570,17 +533,17 @@
   }
 
   function describe(e){
-    if(e.kind==='big'&&e.bristol){ return '第'+e.bristol+'型 '+BRISTOL[e.bristol-1].name; }
-    return e.color||KIND_NAME[e.kind];
+    if(e.bristol){ return '第'+e.bristol+'型 '+BRISTOL[e.bristol-1].name; }
+    return e.color||'大便';
   }
   function headline(e){
-    if(e.kind==='big'&&e.bristol){ var b=BRISTOL[e.bristol-1]; return '第'+e.bristol+'型 · '+b.name; }
-    return KIND_NAME[e.kind]+(e.color?' · '+e.color:'');
+    if(e.bristol){ var b=BRISTOL[e.bristol-1]; return '第'+e.bristol+'型 · '+b.name; }
+    return '大便'+(e.color?' · '+e.color:'');
   }
   function subline(e){
     var parts=[];
     if(e.feel)parts.push(e.feel);
-    if(e.color&&e.kind==='big')parts.push(e.color);
+    if(e.color)parts.push(e.color);
     if(e.note)parts.push(e.note);
     return parts.join(' · ')||'—';
   }
@@ -609,7 +572,7 @@
   function lastBristol(){
     for(var i=0;i<entries.length;i++){
       var b=entries.slice().sort(function(a,b2){return b2.ts-a.ts})[i];
-      if(b.kind==='big'&&b.bristol)return b.bristol;
+      if(b.bristol)return b.bristol;
     }
     return 4;
   }
@@ -622,12 +585,6 @@
   }
 
   function renderSheet(){
-    /* kind segmented */
-    Array.prototype.forEach.call($('kindSeg').children,function(btn){
-      btn.classList.toggle('on', btn.getAttribute('data-k')===draft.kind);
-    });
-    /* bristol visibility */
-    $('bristolFld').style.display = draft.kind==='big' ? '' : 'none';
     /* bristol rows */
     var bl='';
     BRISTOL.forEach(function(b){
@@ -645,10 +602,10 @@
       });
     });
     /* chips */
-    renderChips('colorChips', COLORS[draft.kind], draft.color, function(v,hex){
+    renderChips('colorChips', COLORS, draft.color, function(v,hex){
       draft.color = draft.color===v?null:v; draft.colorHex=hex; renderSheet();
     }, true);
-    renderChips('feelChips', FEELS[draft.kind], draft.feel, function(v){
+    renderChips('feelChips', FEELS, draft.feel, function(v){
       draft.feel = draft.feel===v?null:v; renderSheet();
     }, false);
   }
@@ -671,15 +628,6 @@
   $('addBtn').addEventListener('click',function(){ openSheet(null); });
   $('cancelBtn').addEventListener('click',closeSheet);
   scrim.addEventListener('click',closeSheet);
-
-  Array.prototype.forEach.call($('kindSeg').children,function(btn){
-    btn.addEventListener('click',function(){
-      draft.kind=btn.getAttribute('data-k');
-      draft.color=null; draft.feel=null;
-      if(draft.kind!=='big')draft.bristol=null; else draft.bristol=draft.bristol||lastBristol();
-      renderSheet();
-    });
-  });
 
   $('saveBtn').addEventListener('click',function(){
     var dv=$('inDate').value, tv=$('inTime').value;
