@@ -72,8 +72,15 @@
   .ax{font-family:var(--sans);font-size:8.5px;fill:var(--ink-3)}
   .chart .foot{display:flex;justify-content:space-between;margin-top:8px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-2)}
   .chart .foot b{font-family:var(--serif);font-size:13px;color:var(--ink)}
-  .tlg{display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:8px;padding-top:9px;border-top:1px dashed var(--line);font-size:10.5px;color:var(--ink-2)}
-  .tlg i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:0}
+  .rklist{margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)}
+  .rk{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11.5px}
+  .rk .rk-n{flex:none;width:104px;color:var(--ink-2);display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .rk .rk-n i{width:8px;height:8px;border-radius:2px;flex:none}
+  .rk .rk-t{flex:1;height:9px;border-radius:5px;background:var(--line);overflow:hidden}
+  .rk .rk-t i{display:block;height:100%;border-radius:5px}
+  .rk .rk-c{flex:none;width:42px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
+  .rk.dim{opacity:.5}
+  .rk-zero{margin-top:8px;font-size:10.5px;color:var(--ink-3)}
 
   /* ---------- stats card ---------- */
   .stats{
@@ -328,7 +335,7 @@
   <section class="chart" id="typeCard">
     <div class="ct-t">型 態 趨 勢 · 近 14 日</div>
     <div id="typeChart"></div>
-    <div class="tlg" id="typeLegend"></div>
+    <div class="rklist" id="typeLegend"></div>
   </section>
 
   <section class="stats" id="statsCard" style="display:none">
@@ -570,10 +577,31 @@
     }
     $('countChart').innerHTML=countChartSVG(cols,todayK);
     $('typeChart').innerHTML=typeChartSVG(cols,byType,todayK);
-    var tl='';
-    BRISTOL.forEach(function(b){
-      tl+='<span><i style="background:'+TCOLORS[b.n-1]+'"></i>'+b.n+' '+b.name+'</span>';
+    /* 各型累計排名橫條（降序）；橫條本身兼作上方疊色柱圖例 */
+    var cut14=todayK-(NDAYS-1)*86400000, tTot=[0,0,0,0,0,0,0], tMiss=0, tTyped=0;
+    entries.forEach(function(e){
+      if(e.ts<cut14)return;
+      if(e.bristol){tTot[e.bristol-1]++;tTyped++;}else tMiss++;
     });
+    var order=[1,2,3,4,5,6,7].sort(function(a,b2){return tTot[b2-1]-tTot[a-1]||a-b2});
+    var maxT=Math.max.apply(null,tTot.concat(tMiss?[tMiss]:[]).concat([1]));
+    var tl='';
+    order.forEach(function(n){
+      var cnt=tTot[n-1];
+      if(!cnt)return;
+      var w=Math.max(4,Math.round(cnt/maxT*100));
+      tl+='<div class="rk"><span class="rk-n"><i style="background:'+TCOLORS[n-1]+'"></i>'+n+' '+BRISTOL[n-1].name+'</span>'
+        +'<span class="rk-t"><i style="width:'+w+'%;background:'+TCOLORS[n-1]+'"></i></span>'
+        +'<span class="rk-c">'+cnt+' 次</span></div>';
+    });
+    if(tMiss){
+      tl+='<div class="rk dim"><span class="rk-n"><i style="background:#CFC7B6"></i>未標記</span>'
+        +'<span class="rk-t"><i style="width:'+Math.max(4,Math.round(tMiss/maxT*100))+'%;background:#CFC7B6"></i></span>'
+        +'<span class="rk-c">'+tMiss+' 次</span></div>';
+    }
+    var zeros=BRISTOL.filter(function(b){return tTot[b.n-1]===0}).map(function(b){return b.n+' '+b.name});
+    if(zeros.length) tl+='<div class="rk-zero">未出現：'+zeros.join('、')+'</div>';
+    if(!tTyped&&!tMiss) tl='<div class="rk-zero">尚無資料</div>';
     $('typeLegend').innerHTML=tl;
     $('weekTotal').textContent=total;
     $('weekAvg').textContent=(total/NDAYS).toFixed(1);
