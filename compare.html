@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>型態統計圖形比較 · 如廁日誌</title>
+<style>
+  :root{
+    --paper:#F4EFE4; --card:#FCFAF4; --ink:#2E2A23;
+    --ink-2:#7A7264; --ink-3:#A79E8D; --line:#E3DAC7;
+    --accent:#A3452B;
+    --serif:Georgia,'Songti TC','PMingLiU',serif;
+    --sans:-apple-system,BlinkMacSystemFont,'PingFang TC','Noto Sans TC',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height:100%;-webkit-font-smoothing:antialiased}
+  .app{max-width:480px;margin:0 auto;padding:0 0 60px}
+  header{padding:calc(env(safe-area-inset-top,0px) + 18px) 22px 6px}
+  .brand{font-family:var(--serif);font-size:22px;letter-spacing:.06em}
+  .sub{font-size:12.5px;color:var(--ink-2);margin-top:6px;line-height:1.7}
+  .sub a{color:var(--accent);text-decoration:none;font-weight:600}
+
+  .vc{margin:14px 22px 0;padding:14px 16px 12px;background:var(--card);border:1px solid var(--line);border-radius:16px}
+  .vc .vt{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
+  .vc .vt b{
+    flex:none;width:22px;height:22px;border-radius:7px;background:var(--ink);color:var(--paper);
+    font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif)
+  }
+  .vc .vt .nm{font-family:var(--serif);font-size:15px}
+  .vc .vt .tag{margin-left:auto;font-size:10.5px;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:2px 7px;white-space:nowrap}
+  .vc .vd{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:11px;color:var(--ink-2);line-height:1.6}
+  .vc svg{display:block;width:100%;height:auto}
+  .ax{font-family:var(--sans);font-size:9px;fill:var(--ink-3)}
+  .lb{font-family:var(--sans);font-size:9.5px;fill:var(--ink-2)}
+
+  /* 排名橫條 / 棒棒糖（HTML 版） */
+  .rk{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11.5px}
+  .rk .rk-n{flex:none;width:104px;color:var(--ink-2);display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .rk .rk-n i{width:8px;height:8px;border-radius:2px;flex:none}
+  .rk .rk-t{flex:1;height:9px;border-radius:5px;background:var(--line);overflow:hidden}
+  .rk .rk-t i{display:block;height:100%;border-radius:5px}
+  .rk .rk-c{flex:none;width:40px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .lp{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11.5px}
+  .lp .rk-n{flex:none;width:104px;color:var(--ink-2);display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .lp .rk-n i{width:8px;height:8px;border-radius:2px;flex:none}
+  .lp .st{flex:1;position:relative;height:14px}
+  .lp .st i{position:absolute;left:0;top:6px;height:2px}
+  .lp .st b{position:absolute;top:2px;width:10px;height:10px;border-radius:50%;transform:translateX(-5px)}
+  .lp .rk-c{flex:none;width:40px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">型態統計 · 圖形比較</div>
+    <div class="sub">同一份示範資料（近 3 個月 · 99 次）畫 9 種圖，挑一個最順眼的。
+      <a href="./?demo=1">← 回如廁日誌</a></div>
+  </header>
+  <div id="cards"></div>
+</div>
+
+<script>
+/* 與 ?demo=1 的 3 個月統計相同資料：4:53, 3:19, 5:11, 6:10, 1/2/7 各 2 */
+var TCOLORS=['#4A2F1E','#96613A','#A3B86B','#4E7A45','#7A9A45','#D0842E','#A6321F'];
+var DATA=[
+  {n:4,name:'光滑柔軟',c:53},
+  {n:3,name:'裂痕香腸',c:19},
+  {n:5,name:'軟塊分明',c:11},
+  {n:6,name:'鬆散糊狀',c:10},
+  {n:1,name:'分離硬塊',c:2},
+  {n:2,name:'結塊香腸',c:2},
+  {n:7,name:'完全液狀',c:2}
+];
+var TOTAL=DATA.reduce(function(s,d){return s+d.c},0);
+var MAX=Math.max.apply(null,DATA.map(function(d){return d.c}));
+function col(d){return TCOLORS[d.n-1]}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+var cards=[
+  {id:'A',name:'排名橫條',tag:'目前採用',note:'資訊最直覺：誰多、多多少、次數直接寫出來；缺點是看不出比例感。'},
+  {id:'B',name:'圓餅圖',note:'看「佔比」最經典；缺點是兩個接近的型態很難比出誰多。'},
+  {id:'C',name:'環形圖',note:'同圓餅但中間放總次數，版面利用率高一點。'},
+  {id:'D',name:'鬆餅格（Waffle）',note:'一格＝1%，比例感最強、也最好玩；小比例型態會只剩一兩格。'},
+  {id:'E',name:'泡泡圖',note:'面積＝次數，冠軍的視覺份量最重；但眼睛對面積比較不敏感。'},
+  {id:'F',name:'玫瑰圖',note:'角度相同、用扇形半徑比大小，好看但最不精確。'},
+  {id:'G',name:'棒棒糖圖',note:'排名橫條的清爽版：一根線＋端點圓，少了色塊的厚重感。'},
+  {id:'H',name:'堆疊單條',note:'一條 100% 色帶看組成；小比例段落會擠到放不下字。'},
+  {id:'I',name:'雷達圖',note:'七軸蜘蛛網，看整體輪廓（是否集中某幾型）；讀數最不直覺，僅供參考。'}
+];
+
+function legend(){
+  return DATA.map(function(d){
+    return '<span style="display:inline-flex;align-items:center;gap:4px;margin:5px 10px 0 0;font-size:10.5px;color:var(--ink-2)">'
+      +'<i style="width:8px;height:8px;border-radius:2px;background:'+col(d)+';display:inline-block"></i>'
+      +d.n+' '+d.name+' <b>'+d.c+'</b></span>';
+  }).join('');
+}
+
+function polar(cx,cy,r,a){return [cx+r*Math.cos(a),cy+r*Math.sin(a)]}
+function piePaths(cx,cy,r){
+  var a0=-Math.PI/2,out=[];
+  DATA.forEach(function(d){
+    var a1=a0+d.c/TOTAL*Math.PI*2;
+    var p0=polar(cx,cy,r,a0),p1=polar(cx,cy,r,a1);
+    out.push({d:d,mid:(a0+a1)/2,frac:d.c/TOTAL,
+      path:'M'+cx+' '+cy+' L'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)
+        +' A'+r+' '+r+' 0 '+((a1-a0)>Math.PI?1:0)+' 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' Z'});
+    a0=a1;
+  });
+  return out;
+}
+
+function render(id){
+  var s='';
+  if(id==='A'){
+    DATA.forEach(function(d){
+      var w=Math.max(4,Math.round(d.c/MAX*100));
+      s+='<div class="rk"><span class="rk-n"><i style="background:'+col(d)+'"></i>'+d.n+' '+d.name+'</span>'
+        +'<span class="rk-t"><i style="width:'+w+'%;background:'+col(d)+'"></i></span>'
+        +'<span class="rk-c">'+d.c+' 次</span></div>';
+    });
+    return s;
+  }
+  if(id==='B'||id==='C'){
+    var cx=105,cy=105,r=82,inner='';
+    piePaths(cx,cy,r).forEach(function(p){
+      inner+='<path d="'+p.path+'" fill="'+col(p.d)+'" stroke="var(--card)" stroke-width="1.5"/>';
+      if(p.frac>=0.05){
+        var t=polar(cx,cy,r*0.62,p.mid);
+        inner+='<text x="'+t[0].toFixed(1)+'" y="'+(t[1]+3).toFixed(1)+'" text-anchor="middle" class="lb" fill="#FCFAF4" style="fill:#FCFAF4;font-weight:700">'+p.d.n+'</text>';
+      }
+    });
+    if(id==='C'){
+      inner+='<circle cx="'+cx+'" cy="'+cy+'" r="44" fill="var(--card)"/>'
+        +'<text x="'+cx+'" y="'+(cy-2)+'" text-anchor="middle" style="font-family:var(--serif);font-size:26px;fill:var(--ink)">'+TOTAL+'</text>'
+        +'<text x="'+cx+'" y="'+(cy+16)+'" text-anchor="middle" class="lb">次</text>';
+    }
+    return '<svg viewBox="0 0 210 210">'+inner+'</svg><div>'+legend()+'</div>';
+  }
+  if(id==='D'){
+    /* 10×10 waffle：每格 1%，最大餘數法補齊 100 格 */
+    var shares=DATA.map(function(d){var f=d.c/TOTAL*100;return {d:d,f:f,cells:Math.floor(f),rem:f-Math.floor(f)}});
+    var used=shares.reduce(function(s,x){return s+x.cells},0),left=100-used;
+    shares.slice().sort(function(a,b){return b.rem-a.rem}).slice(0,left).forEach(function(x){x.cells++});
+    var inner='',k=0;
+    shares.forEach(function(x){
+      for(var j=0;j<x.cells;j++){
+        var gx=(k%10),gy=Math.floor(k/10);
+        inner+='<rect x="'+(gx*20+2)+'" y="'+(gy*20+2)+'" width="16" height="16" rx="3.5" fill="'+col(x.d)+'"/>';
+        k++;
+      }
+    });
+    return '<svg viewBox="0 0 200 200" style="max-width:230px;margin:0 auto">'+inner+'</svg><div style="text-align:center">'+legend()+'</div>';
+  }
+  if(id==='E'){
+    /* 泡泡：面積∝次數，一排排開 */
+    var rs=DATA.map(function(d){return Math.sqrt(d.c/MAX)*34});
+    var gap=14,W=0; rs.forEach(function(r){W+=r*2+gap}); W-=gap;
+    var scale=Math.min(1,320/W), x=0, H=Math.ceil(rs[0]*2*scale)+30;
+    var inner='';
+    DATA.forEach(function(d,i){
+      var r=rs[i]*scale; x+=r;
+      var cy=H-8-r;
+      inner+='<circle cx="'+x.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="'+col(d)+'" opacity=".92"/>';
+      if(r>=11)inner+='<text x="'+x.toFixed(1)+'" y="'+(cy+3.5).toFixed(1)+'" text-anchor="middle" style="font-size:'+Math.min(13,r*0.7).toFixed(0)+'px;fill:#FCFAF4;font-weight:700">'+d.n+'</text>';
+      x+=r+gap*scale;
+    });
+    return '<svg viewBox="0 0 340 '+H+'">'+inner+'</svg><div>'+legend()+'</div>';
+  }
+  if(id==='F'){
+    /* 玫瑰圖：等角扇形，半徑∝√次數 */
+    var cx=105,cy=105,inner='';
+    DATA.forEach(function(d,i){
+      var a0=-Math.PI/2+i*Math.PI*2/7+0.02, a1=-Math.PI/2+(i+1)*Math.PI*2/7-0.02;
+      var r=Math.sqrt(d.c/MAX)*95;
+      var p0=polar(cx,cy,r,a0),p1=polar(cx,cy,r,a1);
+      inner+='<path d="M'+cx+' '+cy+' L'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+' A'+r.toFixed(1)+' '+r.toFixed(1)+' 0 0 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' Z" fill="'+col(d)+'" opacity=".9"/>';
+      var t=polar(cx,cy,r+9,(a0+a1)/2);
+      inner+='<text x="'+t[0].toFixed(1)+'" y="'+t[1].toFixed(1)+'" text-anchor="middle" class="lb">'+d.n+'</text>';
+    });
+    return '<svg viewBox="0 0 210 210">'+inner+'</svg>';
+  }
+  if(id==='G'){
+    DATA.forEach(function(d){
+      var w=Math.max(2,Math.round(d.c/MAX*94));
+      s+='<div class="lp"><span class="rk-n"><i style="background:'+col(d)+'"></i>'+d.n+' '+d.name+'</span>'
+        +'<span class="st"><i style="width:'+w+'%;background:'+col(d)+'"></i><b style="left:'+w+'%;background:'+col(d)+'"></b></span>'
+        +'<span class="rk-c">'+d.c+'</span></div>';
+    });
+    return s;
+  }
+  if(id==='H'){
+    /* 100% 堆疊單條 */
+    var inner='',x=0,W=340,bh=30,y=6;
+    DATA.forEach(function(d){
+      var w=d.c/TOTAL*W;
+      inner+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(0,w-1).toFixed(1)+'" height="'+bh+'" rx="'+(w>8?4:1)+'" fill="'+col(d)+'"/>';
+      if(w>=30)inner+='<text x="'+(x+w/2).toFixed(1)+'" y="'+(y+bh/2+3.5).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:#FCFAF4;font-weight:700">'+d.n+' '+Math.round(d.c/TOTAL*100)+'%</text>';
+      x+=w;
+    });
+    return '<svg viewBox="0 0 340 42">'+inner+'</svg><div>'+legend()+'</div>';
+  }
+  if(id==='I'){
+    /* 雷達：7 軸，值做 √ 縮放讓小比例也看得見 */
+    var cx=105,cy=100,R=78,inner='';
+    for(var ring=1;ring<=3;ring++){
+      var rr=R*ring/3,pts=[];
+      for(var i=0;i<7;i++){var a=-Math.PI/2+i*Math.PI*2/7;pts.push(polar(cx,cy,rr,a).map(function(v){return v.toFixed(1)}).join(','))}
+      inner+='<polygon points="'+pts.join(' ')+'" fill="none" stroke="var(--line)" stroke-width="1"/>';
+    }
+    var dpts=[];
+    DATA.slice().sort(function(a,b){return a.n-b.n}).forEach(function(d,i){
+      var a=-Math.PI/2+i*Math.PI*2/7;
+      var r=Math.sqrt(d.c/MAX)*R;
+      dpts.push(polar(cx,cy,r,a).map(function(v){return v.toFixed(1)}).join(','));
+      var t=polar(cx,cy,R+12,a);
+      inner+='<line x1="'+cx+'" y1="'+cy+'" x2="'+polar(cx,cy,R,a)[0].toFixed(1)+'" y2="'+polar(cx,cy,R,a)[1].toFixed(1)+'" stroke="var(--line)"/>'
+        +'<text x="'+t[0].toFixed(1)+'" y="'+(t[1]+3).toFixed(1)+'" text-anchor="middle" class="lb">'+d.n+' '+d.name+'</text>';
+    });
+    inner+='<polygon points="'+dpts.join(' ')+'" fill="rgba(163,69,43,.15)" stroke="#A3452B" stroke-width="2"/>';
+    return '<svg viewBox="0 0 210 200">'+inner+'</svg>';
+  }
+  return '';
+}
+
+document.getElementById('cards').innerHTML=cards.map(function(c){
+  return '<div class="vc"><div class="vt"><b>'+c.id+'</b><span class="nm">'+c.name+'</span>'
+    +(c.tag?'<span class="tag">'+c.tag+'</span>':'')
+    +'</div><div class="vg">'+render(c.id)+'</div><div class="vd">'+c.note+'</div></div>';
+}).join('');
+</script>
+</body>
+</html>

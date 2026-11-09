@@ -1,5 +1,5 @@
-var CACHE = 'gutlog-v6';
-var ASSETS = ['./', './index.html', './bristol.jpg', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
+var CACHE = 'gutlog-v7';
+var ASSETS = ['./', './index.html', './compare.html', './bristol.jpg', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }));
