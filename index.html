@@ -61,25 +61,19 @@
   .hero .lastline{font-size:13px;color:var(--ink-2);min-height:20px}
   .hero .lastline b{color:var(--accent);font-weight:600}
 
-  /* ---------- week chart ---------- */
-  .week{
-    margin:16px 22px 0;padding:14px 16px 10px;
+  /* ---------- trend charts ---------- */
+  .chart{
+    margin:10px 22px 0;padding:14px 16px 10px;
     background:var(--card);border:1px solid var(--line);border-radius:16px;
   }
-  .week .bars{display:flex;align-items:flex-end;gap:6px;height:52px}
-  .week .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-  .week .bar{
-    width:100%;max-width:30px;border-radius:5px 5px 2px 2px;
-    background:var(--ink-3);opacity:.45;
-    min-height:3px;
-    transition:height .3s ease;
-  }
-  .week .col.today .bar{background:var(--accent);opacity:1}
-  .week .n{font-size:10px;color:var(--ink-3);margin-bottom:4px;font-variant-numeric:tabular-nums}
-  .week .col.today .n{color:var(--accent);font-weight:700}
-  .week .d{font-size:10px;color:var(--ink-3);margin-top:6px;letter-spacing:.05em}
-  .week .foot{display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-2)}
-  .week .foot b{font-family:var(--serif);font-size:13px;color:var(--ink)}
+  #countCard{margin-top:16px}
+  .chart .ct-t{font-size:12px;letter-spacing:.14em;color:var(--ink-2);margin-bottom:6px}
+  .chart svg{display:block;width:100%;height:auto}
+  .ax{font-family:var(--sans);font-size:8.5px;fill:var(--ink-3)}
+  .chart .foot{display:flex;justify-content:space-between;margin-top:8px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-2)}
+  .chart .foot b{font-family:var(--serif);font-size:13px;color:var(--ink)}
+  .tlg{display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:8px;padding-top:9px;border-top:1px dashed var(--line);font-size:10.5px;color:var(--ink-2)}
+  .tlg i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:0}
 
   /* ---------- stats card ---------- */
   .stats{
@@ -322,12 +316,19 @@
     <div class="lastline" id="lastLine"></div>
   </section>
 
-  <section class="week" id="weekCard">
-    <div class="bars" id="weekBars"></div>
+  <section class="chart" id="countCard">
+    <div class="ct-t">每 日 次 數 · 近 14 日趨勢</div>
+    <div id="countChart"></div>
     <div class="foot">
-      <span>近 7 日 · 大便</span>
+      <span>近 14 日 · 大便</span>
       <span><b id="weekTotal">0</b> 次 · 日均 <b id="weekAvg">0</b></span>
     </div>
+  </section>
+
+  <section class="chart" id="typeCard">
+    <div class="ct-t">型 態 趨 勢 · 近 14 日</div>
+    <div id="typeChart"></div>
+    <div class="tlg" id="typeLegend"></div>
   </section>
 
   <section class="stats" id="statsCard" style="display:none">
@@ -401,7 +402,7 @@
 (function(){
   'use strict';
   var DEMO = /[?&]demo=1/.test(location.search);
-  var LS_KEY = DEMO ? 'gutlog.demo.v1' : 'gutlog.entries.v1';
+  var LS_KEY = DEMO ? 'gutlog.demo.v2' : 'gutlog.entries.v1';
 
   /* ---------- Bristol scale：原圖照片縮圖（bristol.jpg 七列 sprite） ---------- */
   var BRISTOL = [
@@ -444,10 +445,20 @@
         color:col, colorHex:col==='深褐'?'#6B4A2E':'#B08A4F', feel:feel, note:note||''};
     }
     return [
+      mk(13, 8,20,3,'黃褐','普通'),
+      mk(12, 7,50,4,'深褐','順暢'),
+      mk(11, 8,10,4,'黃褐','順暢'),
+      mk(11,19,40,5,'黃褐','普通'),
+      mk(9, 9,15,1,'深褐','費力','三天沒上、有點脹氣'),
+      mk(8, 8,30,2,'深褐','費力'),
+      mk(8,20,10,3,'黃褐','普通'),
+      mk(7, 8, 5,4,'黃褐','順暢'),
       mk(6, 8,12,4,'黃褐','順暢'),
       mk(5, 7,45,4,'深褐','順暢'),
       mk(5,21,30,6,'黃褐','腹痛','中午的便當好像不太新鮮'),
-      mk(3, 9, 5,2,'深褐','費力','這兩天水喝太少'),
+      mk(4, 9,20,6,'黃褐','腹痛'),
+      mk(4,15,40,7,'黃褐','急迫','還在拉'),
+      mk(3, 9, 5,5,'黃褐','排不淨'),
       mk(2, 8,20,3,'黃褐','普通'),
       mk(2,20,15,4,'黃褐','順暢'),
       mk(1, 7,58,4,'深褐','順暢'),
@@ -462,6 +473,68 @@
   function dayOf(ts){ var d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
   function fmtTime(ts){ var d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); }
   var WD = ['日','一','二','三','四','五','六'];
+
+  /* ---------- 趨勢圖：型態配色（便秘系棕 → 正常系綠 → 腹瀉系橘紅） ---------- */
+  var TCOLORS=['#4A2F1E','#96613A','#A3B86B','#4E7A45','#7A9A45','#D0842E','#A6321F'];
+
+  /* 每日次數：折線＋面積圖 */
+  function countChartSVG(cols,todayK){
+    var W=340,H=132,L=20,R=8,T=14,B=20,n=cols.length;
+    var maxV=Math.max(2,Math.max.apply(null,cols.map(function(c){return c.c})));
+    var iw=W-L-R, ih=H-T-B;
+    var x=function(i){return L+iw*i/(n-1)};
+    var y=function(v){return T+ih*(1-v/maxV)};
+    var s='', step=maxV<=4?1:Math.ceil(maxV/4);
+    for(var g=0;g<=maxV;g+=step){
+      s+='<line x1="'+L+'" y1="'+y(g).toFixed(1)+'" x2="'+(W-R)+'" y2="'+y(g).toFixed(1)+'" stroke="#E3DAC7" stroke-width="1"'+(g===0?'':' stroke-dasharray="2 3"')+'/>'
+        +'<text x="'+(L-4)+'" y="'+(y(g)+3).toFixed(1)+'" text-anchor="end" class="ax">'+g+'</text>';
+    }
+    var pts=cols.map(function(c,i){return x(i).toFixed(1)+','+y(c.c).toFixed(1)}).join(' ');
+    s+='<path d="M'+L+','+y(0).toFixed(1)+' L'+pts.split(' ').join(' L')+' L'+x(n-1).toFixed(1)+','+y(0).toFixed(1)+' Z" fill="rgba(163,69,43,.10)"/>'
+      +'<polyline points="'+pts+'" fill="none" stroke="#A3452B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    cols.forEach(function(c,i){
+      var today=c.t===todayK;
+      s+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(c.c).toFixed(1)+'" r="'+(today?3.4:2.2)+'" fill="'+(today?'#A3452B':'#FCFAF4')+'" stroke="#A3452B" stroke-width="1.6"/>';
+      if(i%2===0||i===n-1){
+        var d=new Date(c.t);
+        s+='<text x="'+x(i).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" class="ax">'+(d.getMonth()+1)+'/'+d.getDate()+'</text>';
+      }
+    });
+    return '<svg viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
+  }
+
+  /* 型態趨勢：每天一根疊色柱，分段＝該日各型次數 */
+  function typeChartSVG(cols,byType,todayK){
+    var W=340,H=140,L=20,R=8,T=14,B=20,n=cols.length;
+    var maxV=Math.max(2,Math.max.apply(null,cols.map(function(c){return c.c})));
+    var iw=W-L-R, ih=H-T-B, y0=T+ih, uh=ih/maxV;
+    var bw=Math.min(14, iw/n*0.55);
+    var s='', step=maxV<=4?1:Math.ceil(maxV/4);
+    for(var g=0;g<=maxV;g+=step){
+      s+='<line x1="'+L+'" y1="'+(y0-g*uh).toFixed(1)+'" x2="'+(W-R)+'" y2="'+(y0-g*uh).toFixed(1)+'" stroke="#E3DAC7" stroke-width="1"'+(g===0?'':' stroke-dasharray="2 3"')+'/>'
+        +'<text x="'+(L-4)+'" y="'+(y0-g*uh+3).toFixed(1)+'" text-anchor="end" class="ax">'+g+'</text>';
+    }
+    cols.forEach(function(c,i){
+      var cx=L+iw*i/(n-1), bx=cx-bw/2, ycur=y0;
+      var bt=byType[c.t]||{}, seen=0;
+      for(var t=1;t<=7;t++){
+        var cnt=bt[t]||0; if(!cnt)continue; seen+=cnt;
+        var h=cnt*uh;
+        s+='<rect x="'+bx.toFixed(1)+'" y="'+(ycur-h).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'+TCOLORS[t-1]+'" opacity="'+(c.t===todayK?'1':'.88')+'"/>';
+        ycur-=h;
+      }
+      var miss=c.c-seen;                       /* 沒選型態的紀錄補灰段 */
+      if(miss>0){
+        var h2=miss*uh;
+        s+='<rect x="'+bx.toFixed(1)+'" y="'+(ycur-h2).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h2.toFixed(1)+'" rx="2" fill="#CFC7B6" opacity=".8"/>';
+      }
+      if(i%2===0||i===n-1){
+        var d=new Date(c.t);
+        s+='<text x="'+cx.toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" class="ax">'+(d.getMonth()+1)+'/'+d.getDate()+'</text>';
+      }
+    });
+    return '<svg viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
+  }
 
   /* ---------- render ---------- */
   function render(){
@@ -482,30 +555,28 @@
     }
     $('lastLine').innerHTML = ll;
 
-    /* week bars: last 7 calendar days */
-    var bars='', total=0, counts={};
+    /* trend charts: last 14 calendar days */
+    var NDAYS=14, counts={}, byType={};
     entries.forEach(function(e){
-      var k=dayOf(e.ts); counts[k]=(counts[k]||0)+1;
+      var k=dayOf(e.ts);
+      counts[k]=(counts[k]||0)+1;
+      if(e.bristol){ var m=byType[k]=byType[k]||{}; m[e.bristol]=(m[e.bristol]||0)+1; }
     });
-    var cols=[];
-    for(var i=6;i>=0;i--){
+    var cols=[], total=0;
+    for(var i=NDAYS-1;i>=0;i--){
       var t=todayK - i*86400000;
       cols.push({t:t,c:counts[t]||0});
       total+=counts[t]||0;
     }
-    var max=Math.max.apply(null,cols.map(function(c){return c.c}).concat([1]));
-    cols.forEach(function(c){
-      var d=new Date(c.t);
-      var h=Math.round(c.c/max*38)+3;
-      bars+='<div class="col'+(c.t===todayK?' today':'')+'">'
-          +'<div class="n">'+(c.c||'')+'</div>'
-          +'<div class="bar" style="height:'+h+'px"></div>'
-          +'<div class="d">'+(d.getMonth()+1)+'/'+d.getDate()+'</div>'
-          +'</div>';
+    $('countChart').innerHTML=countChartSVG(cols,todayK);
+    $('typeChart').innerHTML=typeChartSVG(cols,byType,todayK);
+    var tl='';
+    BRISTOL.forEach(function(b){
+      tl+='<span><i style="background:'+TCOLORS[b.n-1]+'"></i>'+b.n+' '+b.name+'</span>';
     });
-    $('weekBars').innerHTML=bars;
+    $('typeLegend').innerHTML=tl;
     $('weekTotal').textContent=total;
-    $('weekAvg').textContent=(total/7).toFixed(1);
+    $('weekAvg').textContent=(total/NDAYS).toFixed(1);
 
     /* stats card: 近 30 日 */
     var cut=todayK-29*86400000;
