@@ -277,6 +277,22 @@
   }
   .export-line a{color:var(--ink-3);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 
+  /* ---------- install banner ---------- */
+  .ib{
+    display:none;margin:10px 22px 0;padding:11px 14px;
+    background:var(--ink);color:var(--paper);border-radius:14px;
+    align-items:center;gap:10px;font-size:13px;line-height:1.55;
+  }
+  .ib.show{display:flex}
+  .ib .ib-t{flex:1}
+  .ib .ib-t b{color:#E8B54A}
+  .ib .ib-b{
+    flex:none;border:none;background:var(--accent);color:#FBF6EE;
+    font-family:var(--sans);font-size:13px;font-weight:600;
+    padding:9px 14px;border-radius:10px;cursor:pointer;letter-spacing:.1em;
+  }
+  .ib .ib-x{flex:none;color:var(--ink-3);font-size:14px;padding:4px 6px;cursor:pointer}
+
   input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none}
 </style>
 </head>
@@ -301,9 +317,15 @@
     </div>
   </section>
 
+  <div class="ib" id="ib">
+    <div class="ib-t" id="ibText"></div>
+    <button class="ib-b" id="ibBtn" style="display:none">安裝</button>
+    <div class="ib-x" id="ibClose">✕</div>
+  </div>
+
   <main class="hist" id="hist"></main>
 
-  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a></div>
+  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a>　·　<a id="shareLink">分享這個 App 給親友</a></div>
 
   <div class="fab-wrap">
     <button class="fab" id="addBtn">＋ 記一次</button>
@@ -635,6 +657,42 @@
     a.href=URL.createObjectURL(blob);
     a.download='gutlog-'+dkey(new Date())+'.json';
     a.click();
+  });
+
+  $('shareLink').addEventListener('click',function(){
+    var url='https://alexguitar-zz.github.io/gutlog/';
+    if(navigator.share){
+      navigator.share({title:'如廁日誌',text:'記錄如廁次數與 Bristol 狀況的小工具',url:url}).catch(function(){});
+    }else if(navigator.clipboard){
+      navigator.clipboard.writeText(url).then(function(){toast('連結已複製，貼給對方即可')},function(){toast('連結：'+url)});
+    }else{ toast('連結：'+url); }
+  });
+
+  /* ---------- 一鍵安裝引導 ---------- */
+  var IB_KEY='gutlog.ib.dismissed';
+  var deferredPrompt=null;
+  function isStandalone(){
+    return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  }
+  function showIB(text,withBtn){
+    if(localStorage.getItem(IB_KEY)||isStandalone())return;
+    $('ibText').innerHTML=text;
+    $('ibBtn').style.display=withBtn?'':'none';
+    $('ib').classList.add('show');
+  }
+  var iOSSafari=/iphone|ipad|ipod/i.test(navigator.userAgent)&&/safari/i.test(navigator.userAgent)&&!/crios|fxios|edgios|chrome/i.test(navigator.userAgent);
+  window.addEventListener('beforeinstallprompt',function(e){
+    e.preventDefault();deferredPrompt=e;
+    showIB('把這個 App <b>一鍵安裝</b>到手機桌面，之後沒網路也能記',true);
+  });
+  if(iOSSafari){
+    showIB('點 Safari 底部「分享」→「<b>加入主畫面</b>」，這個就變成桌面 App，離線也能記',false);
+  }
+  $('ibBtn').addEventListener('click',function(){
+    if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.finally(function(){$('ib').classList.remove('show')});}
+  });
+  $('ibClose').addEventListener('click',function(){
+    localStorage.setItem(IB_KEY,'1');$('ib').classList.remove('show');
   });
 
   /* swipe-down to close sheet (simple) */
