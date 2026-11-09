@@ -337,6 +337,8 @@
     <button data-d="30">1 月</button>
     <button data-d="60">2 月</button>
     <button data-d="90">3 月</button>
+    <button data-d="180">6 月</button>
+    <button data-d="365">1 年</button>
   </div>
 
   <section class="chart" id="countCard">
@@ -425,7 +427,7 @@
 (function(){
   'use strict';
   var DEMO = /[?&]demo=1/.test(location.search);
-  var LS_KEY = DEMO ? 'gutlog.demo.v3' : 'gutlog.entries.v1';
+  var LS_KEY = DEMO ? 'gutlog.demo.v4' : 'gutlog.entries.v1';
 
   /* ---------- Bristol scale：原圖照片縮圖（bristol.jpg 七列 sprite） ---------- */
   var BRISTOL = [
@@ -450,8 +452,10 @@
   if(DEMO && !entries.length){ entries = seedDemo(); save(); }
   var draft = null;          // {id?, ts, bristol, color, feel, note}
   var editingId = null;
-  var rngDays = 14;          // 趨勢圖區間：14 / 30 / 60 / 90
-  var RANGE_LABEL = {14:'近 14 日',30:'近 1 個月',60:'近 2 個月',90:'近 3 個月'};
+  var rngDays = 14;          // 趨勢圖區間：14 / 30 / 60 / 90 / 180 / 365
+  var RANGE_LABEL = {14:'近 14 日',30:'近 1 個月',60:'近 2 個月',90:'近 3 個月',180:'近 6 個月',365:'近 1 年'};
+  var UNIT_LABEL = {day:'每 日 次 數',week:'每 週 次 數',month:'每 月 次 數'};
+  var UNIT_TAG = {day:'',week:'（每週彙整）',month:'（每月彙整）'};
 
   function load(){
     try{
@@ -489,14 +493,16 @@
       mk(1, 7,58,4,'深褐','順暢'),
       mk(0, 8,35,4,'黃褐','順暢','早餐後很順')
     ];
-    /* 15~89 天：規律生成（中段有一段腹瀉週、遠端一段便秘），供 1/2/3 月區間預覽 */
+    /* 15~364 天：規律生成（40s 腹瀉週、70s 便秘、150s 便秘段、200s 腹瀉週），供各區間預覽 */
     var TYPES=[4,4,4,3,4,5,4,4,3,4];
     var FEEL=['順暢','順暢','普通','順暢','普通'];
     var COL2=['黃褐','深褐','黃褐','黃褐'];
-    for(var off=15;off<=89;off++){
+    for(var off=15;off<=364;off++){
       var n,br;
       if(off>=40&&off<=44){ n=(off===41||off===43)?3:1; br=(off===42)?7:6; }
       else if(off>=70&&off<=72){ n=(off===71)?0:1; br=(off===72)?1:2; }
+      else if(off>=148&&off<=151){ n=1; br=2; }
+      else if(off>=200&&off<=203){ n=(off===201)?3:2; br=(off===202)?7:6; }
       else{
         if((off*37)%10===0)continue;
         n=((off*13)%7===0)?2:1;
@@ -543,8 +549,7 @@
         s+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(c.c).toFixed(1)+'" r="'+(today?3.4:2.2)+'" fill="'+(today?'#A3452B':'#FCFAF4')+'" stroke="#A3452B" stroke-width="1.6"/>';
       }
       if(i%stride===0||i===n-1){
-        var d=new Date(c.t);
-        s+='<text x="'+x(i).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" class="ax">'+(d.getMonth()+1)+'/'+d.getDate()+'</text>';
+        s+='<text x="'+x(i).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" class="ax">'+c.lb+'</text>';
       }
     });
     return '<svg viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
@@ -577,8 +582,7 @@
         s+='<rect x="'+bx.toFixed(1)+'" y="'+(ycur-h2).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h2.toFixed(1)+'" rx="2" fill="#CFC7B6" opacity=".8"/>';
       }
       if(i%stride===0||i===n-1){
-        var d=new Date(c.t);
-        s+='<text x="'+cx.toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" class="ax">'+(d.getMonth()+1)+'/'+d.getDate()+'</text>';
+        s+='<text x="'+cx.toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" class="ax">'+c.lb+'</text>';
       }
     });
     return '<svg viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
@@ -611,27 +615,40 @@
       if(e.bristol){ var m=byDayType[k]=byDayType[k]||{}; m[e.bristol]=(m[e.bristol]||0)+1; }
     });
 
-    /* trend charts：30 日內逐日、60/90 日改每週彙整 */
-    var unitDay = rngDays<=30;
-    var nB = unitDay ? rngDays : Math.ceil(rngDays/7);
+    /* trend charts：30 日內逐日、60/90 日每週、180/365 日每月彙整 */
+    var unit = rngDays<=30 ? 'day' : (rngDays<=90 ? 'week' : 'month');
     var cutW = todayK-(rngDays-1)*86400000;
+    var bks=[],i;
+    if(unit==='day'){
+      for(i=rngDays-1;i>=0;i--) bks.push({t:todayK-i*86400000,e:todayK-(i-1)*86400000});
+    }else if(unit==='week'){
+      var nW=Math.ceil(rngDays/7);
+      for(i=nW-1;i>=0;i--) bks.push({t:todayK-(7*i+6)*86400000,e:todayK-(7*i-1)*86400000});
+    }else{
+      var fm=new Date(cutW); fm.setHours(0,0,0,0); fm.setDate(1);
+      while(fm.getTime()<=todayK){
+        var mt=fm.getTime();
+        fm=new Date(fm.getFullYear(),fm.getMonth()+1,1);
+        bks.push({t:mt,e:fm.getTime()});
+      }
+    }
     var cols=[], byType=[], total=0;
-    for(var i=0;i<nB;i++){
-      var st = unitDay ? todayK-(nB-1-i)*86400000 : todayK-(7*(nB-1-i)+6)*86400000;
-      var c=0, m={};
-      for(var d=0;d<(unitDay?1:7);d++){
-        var kk=st+d*86400000;
+    bks.forEach(function(bk){
+      var c=0,m={};
+      for(var kk=bk.t;kk<bk.e&&kk<=todayK;kk+=86400000){
         if(kk<cutW)continue;
         c+=counts[kk]||0;
         var bt=byDayType[kk];
         if(bt){ for(var tt in bt){ m[tt]=(m[tt]||0)+bt[tt]; } }
       }
+      var bd=new Date(bk.t);
       total+=c;
-      cols.push({t:st,c:c,span:(unitDay?1:7)});
+      cols.push({t:bk.t,c:c,span:Math.round((bk.e-bk.t)/86400000),
+        lb:unit==='month'?(bd.getMonth()+1)+'月':(bd.getMonth()+1)+'/'+bd.getDate()});
       byType.push(m);
-    }
-    $('countTitle').textContent=(unitDay?'每 日 次 數':'每 週 次 數')+' · '+RANGE_LABEL[rngDays]+'趨勢';
-    $('typeTitle').textContent='型 態 趨 勢 · '+RANGE_LABEL[rngDays]+(unitDay?'':'（每週彙整）');
+    });
+    $('countTitle').textContent=UNIT_LABEL[unit]+' · '+RANGE_LABEL[rngDays]+'趨勢';
+    $('typeTitle').textContent='型 態 趨 勢 · '+RANGE_LABEL[rngDays]+UNIT_TAG[unit];
     $('rngFoot').textContent=RANGE_LABEL[rngDays]+' · 大便';
     $('countChart').innerHTML=countChartSVG(cols,todayK);
     $('typeChart').innerHTML=typeChartSVG(cols,byType,todayK);
