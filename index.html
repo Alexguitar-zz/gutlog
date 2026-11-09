@@ -81,6 +81,23 @@
   .week .foot{display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-2)}
   .week .foot b{font-family:var(--serif);font-size:13px;color:var(--ink)}
 
+  /* ---------- stats card ---------- */
+  .stats{
+    margin:10px 22px 0;padding:14px 16px 12px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+  }
+  .stats .st-l1{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-2)}
+  .stats .st-l1 b{font-family:var(--serif);font-size:14px;color:var(--ink)}
+  .segbar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--line);margin-top:11px}
+  .segbar i{display:block;height:100%}
+  .sg-c{background:#B07830}
+  .sg-n{background:#4E6B45}
+  .sg-d{background:#A6321F}
+  .legend{display:flex;gap:13px;font-size:11.5px;color:var(--ink-2);margin-top:7px}
+  .legend i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:0}
+  .stats .st-l2{font-size:11.5px;color:var(--ink-2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+  .stats .st-l2 b{color:var(--accent);font-family:var(--serif);font-size:13px}
+
   /* ---------- history ---------- */
   .hist{flex:1;padding:10px 22px 120px}
   .day-head{
@@ -304,7 +321,7 @@
   </header>
 
   <section class="hero">
-    <div class="cap">今 日 次 數</div>
+    <div class="cap">今 日 大 便</div>
     <div class="count"><span id="todayCount">0</span><small>次</small></div>
     <div class="lastline" id="lastLine"></div>
   </section>
@@ -312,9 +329,16 @@
   <section class="week" id="weekCard">
     <div class="bars" id="weekBars"></div>
     <div class="foot">
-      <span>近 7 日</span>
-      <span><b id="weekTotal">0</b> 次 · 日均 <b id="weekAvg">0</b> 次</span>
+      <span>近 7 日 · 大便</span>
+      <span><b id="weekTotal">0</b> 次 · 小便 <b id="weekSmall">0</b> · 日均 <b id="weekAvg">0</b></span>
     </div>
+  </section>
+
+  <section class="stats" id="statsCard" style="display:none">
+    <div class="st-l1"><span id="stBig"></span><span id="stSmall"></span></div>
+    <div class="segbar" id="segBar"></div>
+    <div class="legend" id="segLegend"></div>
+    <div class="st-l2" id="stLast"></div>
   </section>
 
   <div class="ib" id="ib">
@@ -442,23 +466,30 @@
     var todayK = dayOf(now.getTime());
     var sorted = entries.slice().sort(function(a,b){return b.ts-a.ts});
     var todayEntries = sorted.filter(function(e){return dayOf(e.ts)===todayK});
-    $('todayCount').textContent = todayEntries.length;
+    var todayBig = todayEntries.filter(function(e){return e.kind==='big'});
+    var todaySmall = todayEntries.filter(function(e){return e.kind==='small'});
+    $('todayCount').textContent = todayBig.length;
 
-    if(todayEntries.length){
-      var le = todayEntries[0];
-      $('lastLine').innerHTML = '上次 '+fmtTime(le.ts)+' · <b>'+esc(describe(le))+'</b>';
-    }else{
-      $('lastLine').textContent = sorted.length ? '今天還沒有紀錄' : '從第一筆開始';
+    var ll='';
+    if(todayBig.length){
+      var le=todayBig[0];
+      ll='上次大便 '+fmtTime(le.ts)+' · <b>'+esc(describe(le))+'</b>';
     }
+    if(todaySmall.length){ ll=(ll?ll+'<br>':'')+'小便 '+todaySmall.length+' 次'; }
+    if(!ll){ ll = sorted.length ? '今天還沒有大便' : '從第一筆開始'; }
+    $('lastLine').innerHTML = ll;
 
-    /* week bars: last 7 calendar days */
-    var bars='', total=0, counts={};
-    entries.forEach(function(e){ var k=dayOf(e.ts); counts[k]=(counts[k]||0)+1; });
+    /* week bars: last 7 calendar days — 大便次數 */
+    var bars='', total=0, totalS=0, counts={}, countsS={};
+    entries.forEach(function(e){
+      var k=dayOf(e.ts);
+      if(e.kind==='big'){counts[k]=(counts[k]||0)+1}else{countsS[k]=(countsS[k]||0)+1}
+    });
     var cols=[];
     for(var i=6;i>=0;i--){
       var t=todayK - i*86400000;
       cols.push({t:t,c:counts[t]||0});
-      total+=counts[t]||0;
+      total+=counts[t]||0; totalS+=countsS[t]||0;
     }
     var max=Math.max.apply(null,cols.map(function(c){return c.c}).concat([1]));
     cols.forEach(function(c){
@@ -472,7 +503,39 @@
     });
     $('weekBars').innerHTML=bars;
     $('weekTotal').textContent=total;
+    $('weekSmall').textContent=totalS;
     $('weekAvg').textContent=(total/7).toFixed(1);
+
+    /* stats card: 近 30 日 */
+    var cut=todayK-29*86400000;
+    var b30=0,s30=0,clsC=0,clsN=0,clsD=0,lastBigTs=0;
+    entries.forEach(function(e){
+      if(e.kind==='big'&&e.ts>lastBigTs)lastBigTs=e.ts;
+      if(e.ts<cut)return;
+      if(e.kind==='big'){
+        b30++;
+        if(e.bristol){ if(e.bristol<=2)clsC++; else if(e.bristol<=5)clsN++; else clsD++; }
+      }else s30++;
+    });
+    if(b30+s30===0){ $('statsCard').style.display='none'; }
+    else{
+      $('statsCard').style.display='';
+      $('stBig').innerHTML='近 30 日 · 大便 <b>'+b30+'</b> 次（日均 '+(b30/30).toFixed(1)+'）';
+      $('stSmall').innerHTML='小便 <b>'+s30+'</b> 次';
+      var tb=clsC+clsN+clsD;
+      if(tb){
+        var pc=function(x){return Math.round(x/tb*100)};
+        $('segBar').innerHTML='<i class="sg-c" style="width:'+pc(clsC)+'%"></i><i class="sg-n" style="width:'+pc(clsN)+'%"></i><i class="sg-d" style="width:'+pc(clsD)+'%"></i>';
+        $('segLegend').innerHTML='<span><i class="sg-n"></i>正常 '+pc(clsN)+'%</span><span><i class="sg-c"></i>便秘型 '+pc(clsC)+'%</span><span><i class="sg-d"></i>腹瀉型 '+pc(clsD)+'%</span>';
+      }else{
+        $('segBar').innerHTML=''; $('segLegend').innerHTML='<span>尚無型態紀錄</span>';
+      }
+      if(lastBigTs){
+        var dh=Math.floor((Date.now()-lastBigTs)/3600000);
+        var ago=dh<1?'不到 1 小時前':(dh<24?dh+' 小時前':Math.floor(dh/24)+' 天前');
+        $('stLast').innerHTML='上次大便 <b>'+ago+'</b>';
+      }else{ $('stLast').textContent=''; }
+    }
 
     /* history grouped by day, newest first */
     var html='', lastK=null;
@@ -486,8 +549,9 @@
         lastK=k;
         var d=new Date(k);
         var label = k===todayK ? '今天' : (k===todayK-86400000 ? '昨天' : (d.getMonth()+1)+'月'+d.getDate()+'日 週'+WD[d.getDay()]);
-        var n=counts[k]||0;
-        html+='<div class="day-head"><div class="dh-t">'+label+'</div><div class="dh-n">'+n+' 次</div><div class="dh-line"></div></div>';
+        var nb=counts[k]||0, ns=countsS[k]||0;
+        var dn = nb+' 大'+(ns?' · '+ns+' 小':'');
+        html+='<div class="day-head"><div class="dh-t">'+label+'</div><div class="dh-n">'+dn+'</div><div class="dh-line"></div></div>';
       }
       var b=BRISTOL[e.bristol-1];
       html+='<div class="entry" data-id="'+e.id+'">'
