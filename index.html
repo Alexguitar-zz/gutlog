@@ -294,6 +294,28 @@
   .viewbar.show{display:flex}
   .viewbar a{color:#FFF7EA;font-weight:600;text-decoration:underline;text-underline-offset:3px;white-space:nowrap;cursor:pointer}
 
+  /* ---------- 雲端同步面板 ---------- */
+  .cloudbox{
+    display:none;margin:14px 22px 0;padding:14px 16px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+  }
+  .cloudbox.show{display:block}
+  .cloudbox .cb-t{font-size:12px;letter-spacing:.14em;color:var(--ink-2);margin-bottom:8px}
+  .cloudbox input{
+    width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;
+    font-family:var(--sans);font-size:15px;padding:10px 12px;margin-bottom:9px;
+    background:var(--paper);color:var(--ink);
+  }
+  .cloudbox .cb-row{display:flex;gap:8px}
+  .cloudbox .cb-row button{
+    flex:1;border:1px solid var(--ink);border-radius:10px;padding:10px 0;
+    font-family:var(--sans);font-size:13px;letter-spacing:.06em;cursor:pointer;
+    background:var(--ink);color:var(--paper);
+  }
+  .cloudbox .cb-row button.ghost{background:var(--card);color:var(--ink)}
+  .cloudbox .cb-h{font-size:11px;color:var(--ink-3);margin-top:9px;line-height:1.6}
+  .cloudbox .cb-h a{color:var(--ink-3);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
   /* ---------- install banner ---------- */
   .ib{
     display:none;margin:10px 22px 0;padding:11px 14px;
@@ -382,7 +404,17 @@
 
   <main class="hist" id="hist"></main>
 
-  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a>　·　<a id="importLink">檢視收到的紀錄檔</a>　·　<a id="shareLink">分享這個 App</a></div>
+  <div class="cloudbox" id="cloudBox">
+    <div class="cb-t">雲 端 同 步</div>
+    <input id="cloudCode" placeholder="家庭代碼（例如 lin-8842）" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <div class="cb-row">
+      <button id="cloudSyncBtn">同步我的紀錄</button>
+      <button class="ghost" id="cloudWatchBtn">檢視雲端紀錄</button>
+    </div>
+    <div class="cb-h" id="cloudHint">記錄者按左鈕：每記一筆自動上雲。家人按右鈕：即時檢視對方的雲端紀錄（唯讀）。</div>
+  </div>
+
+  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a>　·　<a id="importLink">檢視收到的紀錄檔</a>　·　<a id="cloudLink">雲端同步</a>　·　<a id="shareLink">分享這個 App</a></div>
   <input type="file" id="importFile" accept=".json,application/json" style="display:none">
 
   <div class="fab-wrap" id="fabWrap">
@@ -435,11 +467,74 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   'use strict';
   var DEMO = /[?&]demo=1/.test(location.search);
   var LS_KEY = DEMO ? 'gutlog.demo.v4' : 'gutlog.entries.v1';
+
+  /* ---------- Firebase 雲端同步 ----------
+     架構：families/{家庭代碼}/entries/{entryId}
+     記錄端：save() 時批次 upsert、刪除時同步刪除、啟動時 pull 合併
+     家人端：onSnapshot 即時訂閱 → 餵進唯讀檢視模式
+     安全規則靠代碼當密鑰（代碼不明=整格資料夾讀不到），無需登入 */
+  var FIREBASE_CONFIG = {
+    projectId:'gutlog-b2e6d',
+    appId:'1:473975795449:web:d823b96d47f2960e8e3c28',
+    apiKey:'AIzaSyBrL3-IBqyWI3CzIVWH54kdqof8SmScfCw',
+    authDomain:'gutlog-b2e6d.firebaseapp.com',
+    messagingSenderId:'473975795449'
+  };
+  var FAM_KEY = 'gutlog.family';
+  var cloudCode = localStorage.getItem(FAM_KEY)||'';
+  var _db = null, _unsub = null;
+  function fbReady(){
+    if(DEMO||!FIREBASE_CONFIG||typeof firebase==='undefined')return null;
+    if(!_db){ firebase.initializeApp(FIREBASE_CONFIG); _db=firebase.firestore(); }
+    return _db;
+  }
+  function famOK(c){ return /^[a-z0-9][a-z0-9-]{5,39}$/.test(c); }
+  function famCol(c){ return fbReady().collection('families').doc(c).collection('entries'); }
+  function cloudPush(){ /* 本機全部 upsert 上雲（文件少，批次寫很省） */
+    var db=fbReady(); if(!db||!cloudCode)return;
+    var b=db.batch(), col=famCol(cloudCode);
+    entries.forEach(function(e){ b.set(col.doc(String(e.id)), e); });
+    b.commit().catch(function(){});
+  }
+  function cloudDel(id){
+    var db=fbReady(); if(!db||!cloudCode)return;
+    famCol(cloudCode).doc(String(id)).delete().catch(function(){});
+  }
+  function cloudPull(){ /* 啟動時把雲端併回本機：同 id 以雲端為準 */
+    var db=fbReady(); if(!db||!cloudCode)return Promise.resolve(0);
+    return famCol(cloudCode).get().then(function(q){
+      var n=0;
+      q.forEach(function(d){
+        var r=d.data(); if(!r||typeof r.ts!=='number')return;
+        var i=entries.findIndex(function(x){return String(x.id)===String(r.id)});
+        if(i>-1)entries[i]=r; else entries.push(r);
+        n++;
+      });
+      if(n){ localStorage.setItem(LS_KEY,JSON.stringify(entries)); render(); }
+      return n;
+    }).catch(function(){return 0;});
+  }
+  function cloudWatch(c){ /* 家人端即時檢視：訂閱→每有更新重渲染（唯讀） */
+    var db=fbReady(); if(!db)return;
+    cloudUnwatch();
+    _unsub=famCol(c).onSnapshot(function(q){
+      var arr=[]; q.forEach(function(d){var r=d.data();if(r&&typeof r.ts==='number')arr.push(r);});
+      viewData=arr; entries=arr;
+      $('viewText').textContent='雲端檢視・即時更新（'+arr.length+' 筆・唯讀）';
+      $('viewBar').classList.add('show');
+      $('fabWrap').style.display='none';
+      render(); window.scrollTo(0,0);
+      toast('雲端資料已更新');
+    },function(){ toast('連線失敗：檢查代碼或網路'); });
+  }
+  function cloudUnwatch(){ if(_unsub){_unsub();_unsub=null;} }
 
   /* ---------- Bristol scale：原圖照片縮圖（bristol.jpg 七列 sprite） ---------- */
   var BRISTOL = [
@@ -478,7 +573,7 @@
       return Array.isArray(arr) ? arr : [];
     }catch(e){ return []; }
   }
-  function save(){ if(viewData) return; localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
+  function save(){ if(viewData) return; localStorage.setItem(LS_KEY, JSON.stringify(entries)); cloudPush(); }
 
   /* ---------- 示範模式：7 天假資料，寫進獨立儲存區，不碰真實紀錄 ---------- */
   function seedDemo(){
@@ -899,6 +994,7 @@
     if(editingId==null)return;
     if(!confirm('確定刪除這筆紀錄？'))return;
     entries=entries.filter(function(x){return String(x.id)!==String(editingId)});
+    cloudDel(editingId);
     save(); closeSheet(); render(); toast('已刪除');
   });
 
@@ -960,11 +1056,42 @@
     rd.readAsText(f);
   });
   $('viewBack').addEventListener('click',function(){
+    cloudUnwatch();
     viewData=null; entries=myEntries;
     $('viewBar').classList.remove('show');
     $('fabWrap').style.display='';
     render();
   });
+
+  /* ---------- 雲端同步面板 ---------- */
+  if(DEMO)$('cloudLink').style.display='none';
+  $('cloudLink').addEventListener('click',function(){ $('cloudBox').classList.toggle('show'); });
+  $('cloudSyncBtn').addEventListener('click',function(){
+    var c=$('cloudCode').value.trim().toLowerCase();
+    if(!famOK(c)){toast('代碼格式：小寫英數或 -，至少 6 碼');return;}
+    if(!fbReady()){toast('雲端套件未載入，檢查網路後重試');return;}
+    cloudCode=c; localStorage.setItem(FAM_KEY,c);
+    cloudPull().then(function(){ cloudPush(); });
+    $('cloudHint').innerHTML='同步中・代碼 <b>'+c+'</b>——每記一筆自動上雲。<a id="cloudStop">停止同步</a>';
+    toast('雲端同步已開啟');
+  });
+  $('cloudWatchBtn').addEventListener('click',function(){
+    var c=$('cloudCode').value.trim().toLowerCase();
+    if(!famOK(c)){toast('代碼格式：小寫英數或 -，至少 6 碼');return;}
+    if(!fbReady()){toast('雲端套件未載入，檢查網路後重試');return;}
+    cloudWatch(c);
+  });
+  $('cloudHint').addEventListener('click',function(e){
+    if(e.target.id==='cloudStop'){
+      cloudCode=''; localStorage.removeItem(FAM_KEY);
+      $('cloudHint').textContent='已停止同步（雲端資料保留，本機紀錄不受影響）。';
+    }
+  });
+  if(cloudCode&&fbReady()){
+    $('cloudCode').value=cloudCode;
+    $('cloudHint').innerHTML='同步中・代碼 <b>'+cloudCode+'</b>——每記一筆自動上雲。<a id="cloudStop">停止同步</a>';
+    cloudPull();
+  }
 
   /* ---------- 一鍵安裝引導 ---------- */
   var IB_KEY='gutlog.ib.dismissed';
