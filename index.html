@@ -82,13 +82,10 @@
   .chart .foot{display:flex;justify-content:space-between;margin-top:8px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-2)}
   .chart .foot b{font-family:var(--serif);font-size:13px;color:var(--ink)}
   .rklist{margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)}
-  .rk{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11.5px}
-  .rk .rk-n{flex:none;width:104px;color:var(--ink-2);display:flex;align-items:center;gap:5px;white-space:nowrap}
-  .rk .rk-n i{width:8px;height:8px;border-radius:2px;flex:none}
-  .rk .rk-t{flex:1;height:9px;border-radius:5px;background:var(--line);overflow:hidden}
-  .rk .rk-t i{display:block;height:100%;border-radius:5px}
-  .rk .rk-c{flex:none;width:42px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
-  .rk.dim{opacity:.5}
+  .pieg{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:8px;font-size:11px;color:var(--ink-2)}
+  .pieg span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .pieg i{width:8px;height:8px;border-radius:2px;flex:none;display:inline-block}
+  .pieg b{color:var(--ink)}
   .rk-zero{margin-top:8px;font-size:10.5px;color:var(--ink-3)}
 
   /* ---------- stats card ---------- */
@@ -588,6 +585,32 @@
     return '<svg viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
   }
 
+  /* 型態統計圓餅：佔比扇形＋型號標籤 */
+  function typePieSVG(tTot,tMiss){
+    var data=[],tot=0;
+    for(var t=1;t<=7;t++){ if(tTot[t-1]>0){ data.push({n:t,c:tTot[t-1],col:TCOLORS[t-1]}); tot+=tTot[t-1]; } }
+    if(tMiss>0){ data.push({n:0,c:tMiss,col:'#CFC7B6'}); tot+=tMiss; }
+    if(!tot)return '';
+    var cx=100,cy=95,R=82,a0=-Math.PI/2,s='';
+    data.forEach(function(d){
+      var a1=a0+d.c/tot*Math.PI*2;
+      if(data.length===1){
+        s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="'+d.col+'"/>';
+      }else{
+        var x0=cx+R*Math.cos(a0),y0=cy+R*Math.sin(a0),x1=cx+R*Math.cos(a1),y1=cy+R*Math.sin(a1);
+        s+='<path d="M'+cx+' '+cy+' L'+x0.toFixed(1)+' '+y0.toFixed(1)
+          +' A'+R+' '+R+' 0 '+((a1-a0)>Math.PI?1:0)+' 1 '+x1.toFixed(1)+' '+y1.toFixed(1)+' Z" fill="'+d.col+'" stroke="#FCFAF4" stroke-width="1.5"/>';
+      }
+      if(d.n&&d.c/tot>=0.06){
+        var am=(a0+a1)/2;
+        s+='<text x="'+(cx+R*0.62*Math.cos(am)).toFixed(1)+'" y="'+(cy+R*0.62*Math.sin(am)+4).toFixed(1)
+          +'" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#FCFAF4">'+d.n+'</text>';
+      }
+      a0=a1;
+    });
+    return '<svg viewBox="0 0 200 190" style="max-width:230px;margin:0 auto;display:block">'+s+'</svg>';
+  }
+
   /* ---------- render ---------- */
   function render(){
     var now = new Date();
@@ -652,31 +675,29 @@
     $('rngFoot').textContent=RANGE_LABEL[rngDays]+' · 大便';
     $('countChart').innerHTML=countChartSVG(cols,todayK);
     $('typeChart').innerHTML=typeChartSVG(cols,byType,todayK);
-    /* 各型累計排名橫條（降序）；橫條本身兼作上方疊色柱圖例 */
+    /* 各型累計圓餅＋佔比圖例（老闆指定圓餅圖顯示型態統計） */
     var tTot=[0,0,0,0,0,0,0], tMiss=0, tTyped=0;
     entries.forEach(function(e){
       if(e.ts<cutW)return;
       if(e.bristol){tTot[e.bristol-1]++;tTyped++;}else tMiss++;
     });
-    var order=[1,2,3,4,5,6,7].sort(function(a,b2){return tTot[b2-1]-tTot[a-1]||a-b2});
-    var maxT=Math.max.apply(null,tTot.concat(tMiss?[tMiss]:[]).concat([1]));
-    var tl='';
-    order.forEach(function(n){
-      var cnt=tTot[n-1];
-      if(!cnt)return;
-      var w=Math.max(4,Math.round(cnt/maxT*100));
-      tl+='<div class="rk"><span class="rk-n"><i style="background:'+TCOLORS[n-1]+'"></i>'+n+' '+BRISTOL[n-1].name+'</span>'
-        +'<span class="rk-t"><i style="width:'+w+'%;background:'+TCOLORS[n-1]+'"></i></span>'
-        +'<span class="rk-c">'+cnt+' 次</span></div>';
-    });
-    if(tMiss){
-      tl+='<div class="rk dim"><span class="rk-n"><i style="background:#CFC7B6"></i>未標記</span>'
-        +'<span class="rk-t"><i style="width:'+Math.max(4,Math.round(tMiss/maxT*100))+'%;background:#CFC7B6"></i></span>'
-        +'<span class="rk-c">'+tMiss+' 次</span></div>';
+    var tSum=tTyped+tMiss, tl;
+    if(tSum){
+      tl=typePieSVG(tTot,tMiss);
+      var order=[1,2,3,4,5,6,7].sort(function(a,b2){return tTot[b2-1]-tTot[a-1]});
+      tl+='<div class="pieg">';
+      order.forEach(function(n){
+        if(!tTot[n-1])return;
+        tl+='<span><i style="background:'+TCOLORS[n-1]+'"></i>'+n+' '+BRISTOL[n-1].name
+          +' <b>'+tTot[n-1]+' 次</b> · '+Math.round(tTot[n-1]/tSum*100)+'%</span>';
+      });
+      if(tMiss) tl+='<span><i style="background:#CFC7B6"></i>未標記 <b>'+tMiss+' 次</b></span>';
+      tl+='</div>';
+      var zeros=BRISTOL.filter(function(b){return tTot[b.n-1]===0}).map(function(b){return b.n+' '+b.name});
+      if(zeros.length) tl+='<div class="rk-zero">未出現：'+zeros.join('、')+'</div>';
+    }else{
+      tl='<div class="rk-zero">尚無資料</div>';
     }
-    var zeros=BRISTOL.filter(function(b){return tTot[b.n-1]===0}).map(function(b){return b.n+' '+b.name});
-    if(zeros.length) tl+='<div class="rk-zero">未出現：'+zeros.join('、')+'</div>';
-    if(!tTyped&&!tMiss) tl='<div class="rk-zero">尚無資料</div>';
     $('typeLegend').innerHTML=tl;
     $('weekTotal').textContent=total;
     $('weekAvg').textContent=(total/rngDays).toFixed(1);
