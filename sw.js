@@ -1,4 +1,4 @@
-var CACHE = 'gutlog-v9';
+var CACHE = 'gutlog-v10';
 var ASSETS = ['./', './index.html', './compare.html', './bristol.jpg', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {

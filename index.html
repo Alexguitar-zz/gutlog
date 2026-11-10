@@ -285,6 +285,15 @@
   }
   .export-line a{color:var(--ink-3);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 
+  /* ---------- 匯入檢視橫幅 ---------- */
+  .viewbar{
+    display:none;margin:10px 22px 0;padding:11px 14px;border-radius:14px;
+    background:#B07830;color:#FFF7EA;font-size:12.5px;line-height:1.55;
+    align-items:center;justify-content:space-between;gap:10px;
+  }
+  .viewbar.show{display:flex}
+  .viewbar a{color:#FFF7EA;font-weight:600;text-decoration:underline;text-underline-offset:3px;white-space:nowrap;cursor:pointer}
+
   /* ---------- install banner ---------- */
   .ib{
     display:none;margin:10px 22px 0;padding:11px 14px;
@@ -321,6 +330,11 @@
   <div class="demo" id="demoBar">
     <div class="d-t"><b>示範模式</b>：以下為 7 天假資料，不會動到你的真實紀錄</div>
     <a href="./">回到我的紀錄</a>
+  </div>
+
+  <div class="viewbar" id="viewBar">
+    <span id="viewText">正在檢視匯入的紀錄（不會存入本機）</span>
+    <a id="viewBack">返回我的紀錄</a>
   </div>
 
   <section class="hero">
@@ -368,9 +382,10 @@
 
   <main class="hist" id="hist"></main>
 
-  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a>　·　<a id="shareLink">分享這個 App 給親友</a></div>
+  <div class="export-line"><a id="exportLink">匯出全部紀錄（JSON）</a>　·　<a id="importLink">檢視收到的紀錄檔</a>　·　<a id="shareLink">分享這個 App</a></div>
+  <input type="file" id="importFile" accept=".json,application/json" style="display:none">
 
-  <div class="fab-wrap">
+  <div class="fab-wrap" id="fabWrap">
     <button class="fab" id="addBtn">＋ 記一次</button>
   </div>
 </div>
@@ -447,6 +462,8 @@
   /* ---------- state ---------- */
   var entries = load();
   if(DEMO && !entries.length){ entries = seedDemo(); save(); }
+  var myEntries = entries;   // 本機真實紀錄（檢視匯入檔時暫存用）
+  var viewData = null;       // 匯入檢視模式：非 null 時 entries 指向他人資料
   var draft = null;          // {id?, ts, bristol, color, feel, note}
   var editingId = null;
   var rngDays = 14;          // 趨勢圖區間：14 / 30 / 60 / 90 / 180 / 365
@@ -461,7 +478,7 @@
       return Array.isArray(arr) ? arr : [];
     }catch(e){ return []; }
   }
-  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
+  function save(){ if(viewData) return; localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
 
   /* ---------- 示範模式：7 天假資料，寫進獨立儲存區，不碰真實紀錄 ---------- */
   function seedDemo(){
@@ -780,6 +797,7 @@
   var sheet=$('sheet'), scrim=$('scrim');
 
   function openSheet(id){
+    if(viewData){ toast('檢視模式：這是別人的紀錄，無法編輯'); return; }
     editingId = id||null;
     var e = id ? entries.filter(function(x){return String(x.id)===String(id)})[0] : null;
     var now = new Date();
@@ -914,6 +932,38 @@
     }else if(navigator.clipboard){
       navigator.clipboard.writeText(url).then(function(){toast('連結已複製，貼給對方即可')},function(){toast('連結：'+url)});
     }else{ toast('連結：'+url); }
+  });
+
+  /* ---------- 匯入檢視：看親友寄來的紀錄檔（唯讀、不寫本機） ---------- */
+  function enterView(arr){
+    viewData = arr; entries = arr;
+    $('viewText').textContent='正在檢視匯入的紀錄（'+arr.length+' 筆・不會存入本機）';
+    $('viewBar').classList.add('show');
+    $('fabWrap').style.display='none';
+    render(); window.scrollTo(0,0);
+    toast('已載入 '+arr.length+' 筆紀錄');
+  }
+  $('importLink').addEventListener('click',function(){ $('importFile').click(); });
+  $('importFile').addEventListener('change',function(){
+    var f=this.files&&this.files[0]; this.value='';
+    if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){
+      try{
+        var arr=JSON.parse(rd.result);
+        if(!Array.isArray(arr))throw 0;
+        arr=arr.filter(function(x){return x&&typeof x.ts==='number'});
+        if(!arr.length){toast('檔案裡沒有紀錄');return;}
+        enterView(arr);
+      }catch(e){toast('檔案格式不對，請選 App 匯出的 .json');}
+    };
+    rd.readAsText(f);
+  });
+  $('viewBack').addEventListener('click',function(){
+    viewData=null; entries=myEntries;
+    $('viewBar').classList.remove('show');
+    $('fabWrap').style.display='';
+    render();
   });
 
   /* ---------- 一鍵安裝引導 ---------- */
